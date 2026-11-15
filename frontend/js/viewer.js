@@ -28,21 +28,21 @@ const PROBLEM_BITS = 0x7f;          // flag categories except "known source"
 const MODE_NOUNS = { frames: "images", epochs: "visits", difference: "visits", detectors: "detectors" };
 
 const el = {
-  viewer: $("viewer"), back: $("v-back"), kicker: $("v-kicker"), title: $("v-title"), coords: $("v-coords"),
+  viewer: $("viewer"), back: $("v-back"), title: $("v-title"), coords: $("v-coords"),
   fovSeg: $("fov-seg"), share: $("v-share"), full: $("v-full"),
   modeList: $("mode-list"), detectors: $("detectors"),
   ovCrosshair: $("ov-crosshair"), ovGaia: $("ov-gaia"), ovAllwise: $("ov-allwise"), ovFlags: $("ov-flags"),
-  ovAperture: $("ov-aperture"), ovGaiaNote: $("ov-gaia-note"), ovAllwiseNote: $("ov-allwise-note"),
+  ovAperture: $("ov-aperture"),
   stage: $("stage"), canvas: $("canvas"), capTitle: $("cap-title"), capSub: $("cap-sub"), capChip: $("cap-chip"),
   legend: $("legend"), message: $("message"), loadbar: $("loadbar"),
   zoomIn: $("zoom-in"), zoomOut: $("zoom-out"), zoomValue: $("zoom-value"),
   prev: $("prev"), play: $("play"), next: $("next"), frameCount: $("frame-count"), fps: $("fps"), fpsValue: $("fps-value"),
-  timeline: $("timeline"), tStart: $("t-start"), tEnd: $("t-end"), tNote: $("t-note"),
+  timeline: $("timeline"), tStart: $("t-start"), tEnd: $("t-end"),
   infoTitle: $("info-title"), facts: $("facts"), flagChips: $("flag-chips"),
   spectrum: $("spectrum"), specReadout: $("spec-readout"), specCsv: $("spec-csv"),
   renderSeg: $("render-seg"), lo: $("lo"), loValue: $("lo-value"), hi: $("hi"), hiValue: $("hi-value"),
   asinh: $("asinh"), asinhValue: $("asinh-value"), lock: $("lock"), resetDisplay: $("reset-display"),
-  progressText: $("progress-text"), retryFailed: $("retry-failed"), failures: $("failures"), dataSource: $("data-source"),
+  dataFacts: $("data-facts"), retryFailed: $("retry-failed"), failures: $("failures"),
   shareDialog: $("share"), shareLink: $("share-link"), shareEmbed: $("share-embed"), shareClose: $("share-close"),
 };
 const ctx = el.canvas.getContext("2d");
@@ -124,7 +124,6 @@ export function openViewer(q) {
   el.viewer.hidden = false;
   el.viewer.style.animation = "none"; void el.viewer.offsetWidth; el.viewer.style.animation = "";
   el.title.textContent = V.query.name || "Selected position";
-  el.kicker.textContent = V.query.name ? "Blink viewer · target" : "Blink viewer · position";
   el.coords.textContent = "";
   syncControls();
   load();
@@ -322,7 +321,6 @@ async function loadCatalog(name) {
   if (!V.query || V.catalogs[name]?.status === "loading" || V.catalogs[name]?.status === "ready") return;
   const generation = V.generation;
   V.catalogs[name] = { status: "loading" };
-  updateOverlayNotes();
   try {
     const params = new URLSearchParams({ name, ra: V.query.ra, dec: V.query.dec, fov: String(V.query.fov) });
     const response = await fetch(`api/catalog?${params}`);
@@ -335,20 +333,16 @@ async function loadCatalog(name) {
     V.catalogs[name] = { status: "error", error: error.message };
     toast(`${name === "gaia" ? "Gaia" : "AllWISE"} overlay unavailable: ${error.message}`);
   }
-  updateOverlayNotes();
   V.dirty = true;
 }
 
-function updateOverlayNotes() {
-  const note = (name, idle) => {
-    const c = V.catalogs[name];
-    if (!c) return idle;
-    if (c.status === "loading") return "Loading…";
-    if (c.status === "error") return "Could not load";
-    return `${c.rows.length.toLocaleString()} sources in this field`;
-  };
-  el.ovGaiaNote.textContent = note("gaia", "Moved to each image's date");
-  el.ovAllwiseNote.textContent = note("allwise", "WISE positions, 2010");
+/** Fill an element with separate spans (facts are separated by space, not punctuation). */
+function setParts(node, parts) {
+  node.replaceChildren(...parts.filter(Boolean).map((text) => {
+    const span = document.createElement("span");
+    span.textContent = text;
+    return span;
+  }));
 }
 
 /* ============================================================ view items */
@@ -598,7 +592,7 @@ function draw() {
       ctx.stroke();
       shown += 1;
     }
-    legend.push(`<span><i style="border:2px solid ${color.replace("A", "0.9")};background:none;${shape === "circle" ? "border-radius:50%" : ""}"></i>${cat.label} · ${shown}</span>`);
+    legend.push(`<span><i style="border:2px solid ${color.replace("A", "0.9")};background:none;${shape === "circle" ? "border-radius:50%" : ""}"></i>${shown} ${cat.label}</span>`);
   }
 
   if (el.ovAperture.checked && V.aperture) {
@@ -630,7 +624,7 @@ function draw() {
   el.legend.hidden = legend.length === 0;
 }
 
-const fmtDate = (iso) => `${iso.slice(0, 10)} · ${iso.slice(11, 16)} UTC`;
+const fmtDate = (iso) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 const fmtDay = (mjd) => new Date((mjd - 40587) * 86400000).toISOString().slice(0, 10);
 const bandOf = (d) => {
   const f = V.frames.find((x) => x.detector === d && x.wavelength_min_um != null);
@@ -642,28 +636,29 @@ const visitRange = (epoch) => {
 };
 
 function updateCaption(item) {
-  let title = "", sub = "", color = "";
+  let title = "", parts = [], color = "";
+  const which = V.detector ? `D${V.detector}` : "All detectors";
   if (item?.kind === "frame") {
     const f = item.frame;
     title = fmtDate(f.date_iso);
-    sub = `D${f.detector} · ${f.wavelength != null ? `${f.wavelength.toFixed(3)} µm` : bandOf(f.detector)}`;
+    parts = [`D${f.detector}`, f.wavelength != null ? `${f.wavelength.toFixed(3)} µm` : bandOf(f.detector)];
     color = DETECTOR_COLORS[f.detector - 1];
   } else if (item?.kind === "stack" && item.epoch) {
-    title = `Visit ${item.epoch.index + 1} of ${V.epochs.length} · ${visitRange(item.epoch)}`;
-    sub = `${item.members.length} images added · ${V.detector ? `D${V.detector}` : "all detectors"}`;
+    title = `Visit ${item.epoch.index + 1} of ${V.epochs.length}`;
+    parts = [visitRange(item.epoch), `${item.members.length} images`, which];
     color = V.detector ? DETECTOR_COLORS[V.detector - 1] : "";
   } else if (item?.kind === "stack") {
-    title = `D${item.detector} · ${bandOf(item.detector)}`;
-    sub = `${item.members.length} images added · all visits`;
+    title = `D${item.detector} stack`;
+    parts = [bandOf(item.detector), `${item.members.length} images`];
     color = DETECTOR_COLORS[item.detector - 1];
   } else if (item?.kind === "diff") {
     const others = V.epochs.filter((e) => e !== item.epoch && item.others.some((f) => f.epoch === e.index));
     title = `Visit ${item.epoch.index + 1} minus visit${others.length > 1 ? "s" : ""} ${others.map((e) => e.index + 1).join(", ")}`;
-    sub = `${item.members.length} vs ${item.others.length} images · ${V.detector ? `D${V.detector}` : "all detectors"}`;
+    parts = [`${item.members.length} against ${item.others.length} images`, which];
     color = V.detector ? DETECTOR_COLORS[V.detector - 1] : "";
   }
   el.capTitle.textContent = title;
-  el.capSub.textContent = sub;
+  setParts(el.capSub, parts);
   el.capChip.style.setProperty("--c", color || "transparent");
 }
 
@@ -674,7 +669,7 @@ function drawTimeline() {
   const dpr = w / Math.max(1, el.timeline.clientWidth);
   tctx.clearRect(0, 0, w, h);
   const frames = V.frames;
-  if (!frames.length) { el.tStart.textContent = el.tEnd.textContent = el.tNote.textContent = ""; return; }
+  if (!frames.length) { el.tStart.textContent = el.tEnd.textContent = ""; return; }
   const t0 = frames[0].mjd, t1 = frames[frames.length - 1].mjd, pad = 10 * dpr;
   const x = (mjd) => pad + (t1 > t0 ? (mjd - t0) / (t1 - t0) : 0.5) * (w - 2 * pad);
   const base = h - 8 * dpr;
@@ -710,7 +705,6 @@ function drawTimeline() {
   }
   el.tStart.textContent = frames[0].date_iso.slice(0, 10);
   el.tEnd.textContent = frames[frames.length - 1].date_iso.slice(0, 10);
-  el.tNote.textContent = `${V.epochs.length} visit${V.epochs.length === 1 ? "" : "s"} · ${frames.length} images`;
 }
 
 function seekTimeline(event) {
@@ -781,7 +775,7 @@ function drawSpectrum() {
   V.specPoints = [];
   const ready = V.frames.filter((f) => f.status === "ready" && f.wavelength != null);
   if (!ready.length || !V.aperture) {
-    sctx.fillStyle = "#80858c";
+    sctx.fillStyle = "#ecebe7";
     sctx.font = `${13 * dpr}px "Public Sans", sans-serif`;
     sctx.fillText(V.frames.length ? "The spectrum appears as images load." : "", 12 * dpr, 24 * dpr);
     return;
@@ -796,7 +790,7 @@ function drawSpectrum() {
   const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
 
   sctx.font = `${11.5 * dpr}px "Public Sans", sans-serif`;
-  sctx.fillStyle = "#80858c";
+  sctx.fillStyle = "#ecebe7";
   sctx.strokeStyle = "rgba(255,255,255,0.08)";
   sctx.lineWidth = dpr;
   for (const t of niceTicks(lo, hi)) {
@@ -843,7 +837,8 @@ function spectrumPointAt(event) {
 }
 
 function describePoint(p) {
-  return `${p.f.wavelength.toFixed(3)} µm · ${p.flux.toFixed(2)} mJy · ${p.f.date_iso.slice(0, 10)} · D${p.f.detector}${p.flagged ? " · flagged" : ""}`;
+  return [`${p.f.wavelength.toFixed(3)} µm`, `${p.flux.toFixed(2)} mJy`, p.f.date_iso.slice(0, 10),
+    `D${p.f.detector}`, p.flagged ? "Flagged" : ""];
 }
 
 function downloadSpectrum() {
@@ -870,12 +865,11 @@ function downloadSpectrum() {
 
 /* ============================================================ side panels */
 
-function fact(label, value, cls = "") {
+function fact(label, value) {
   const dt = document.createElement("dt");
   dt.textContent = label;
   const dd = document.createElement("dd");
   dd.textContent = value;
-  if (cls) dd.className = cls;
   return [dt, dd];
 }
 
@@ -892,46 +886,47 @@ function updateInfo() {
   if (item.kind === "frame") {
     const f = item.frame, m = f.meta || {}, hdr = m.header || {};
     el.infoTitle.textContent = "This image";
-    nodes.push(...fact("Date (UTC)", f.date_iso.replace("T", " ").replace("Z", "")));
-    nodes.push(...fact("Detector", `D${f.detector} · ${bandOf(f.detector)}`));
-    if (f.wavelength != null) nodes.push(...fact("Wavelength here", `${f.wavelength.toFixed(3)} µm (width ${(m.bandwidth_um ?? 0).toFixed(3)})`));
-    nodes.push(...fact("Data release", f.collection));
+    nodes.push(...fact("Date", f.date_iso.slice(0, 10)));
+    nodes.push(...fact("Time (UTC)", f.date_iso.slice(11, 19)));
+    nodes.push(...fact("Detector", `D${f.detector}`));
+    if (f.wavelength != null) nodes.push(...fact("Wavelength", `${f.wavelength.toFixed(3)} µm`));
+    nodes.push(...fact("Release", f.collection));
     nodes.push(...fact("Observation", f.obs_id));
     if (hdr.XPOSURE != null) nodes.push(...fact("Exposure", `${hdr.XPOSURE.toFixed(1)} s`));
-    if (hdr.L2DQAFLG) nodes.push(...fact("Quality check", hdr.L2DQAFLG, hdr.L2DQAFLG === "Pass" ? "ok" : "warn"));
-    if (hdr.PSF_FWHM != null) nodes.push(...fact("PSF width", `${hdr.PSF_FWHM.toFixed(2)}″`));
-    const glow = [["AURORA_CONT", "aurora"], ["SHUTTLE_GLOW_CONT", "shuttle glow"], ["HE_AIRGLOW_CONT", "helium airglow"],
-      ["OBS_IN_SBAND", "radio transmission"]].filter(([k]) => hdr[k] === true).map(([, label]) => label);
-    nodes.push(...fact("Glow / contamination", glow.length ? glow.join(", ") : "None", glow.length ? "warn" : "ok"));
-    if (hdr["L2 N_TRANSIENT"] != null) nodes.push(...fact("Cosmic-ray pixels (whole image)", hdr["L2 N_TRANSIENT"].toLocaleString()));
-    if (hdr.NSNOWSRC != null || hdr["L2 SATSTRKS"] != null) {
-      nodes.push(...fact("Snowballs / satellite streaks", `${hdr.NSNOWSRC ?? "–"} / ${hdr["L2 SATSTRKS"] ?? "–"}`));
-    }
+    if (hdr.L2DQAFLG) nodes.push(...fact("Quality", hdr.L2DQAFLG));
+    if (hdr.PSF_FWHM != null) nodes.push(...fact("PSF", `${hdr.PSF_FWHM.toFixed(2)}″`));
+    const glow = [["AURORA_CONT", "Aurora"], ["SHUTTLE_GLOW_CONT", "Shuttle glow"], ["HE_AIRGLOW_CONT", "Helium"],
+      ["OBS_IN_SBAND", "S-band"]].filter(([k]) => hdr[k] === true).map(([, label]) => label);
+    nodes.push(...fact("Glow", glow.length ? glow.join(", ") : "None"));
+    if (hdr["L2 N_TRANSIENT"] != null) nodes.push(...fact("Cosmic-ray pixels", hdr["L2 N_TRANSIENT"].toLocaleString()));
+    if (hdr.NSNOWSRC != null) nodes.push(...fact("Snowballs", String(hdr.NSNOWSRC)));
+    if (hdr["L2 SATSTRKS"] != null) nodes.push(...fact("Satellite streaks", String(hdr["L2 SATSTRKS"])));
     const bits = V.info?.flag_bits || {};
     const byName = Object.fromEntries(Object.values(bits).map((b) => [b.name, b]));
     const flags = m.target_flags || [];
-    const problems = flags.filter((n) => byName[n]?.category !== "info");
-    nodes.push(...fact("Flags at the target", problems.length ? `${problems.length} problem flag${problems.length > 1 ? "s" : ""}` : "None", problems.length ? "warn" : "ok"));
+    nodes.push(...fact("Flags at target", flags.length ? String(flags.length) : "None"));
     for (const name of flags) {
       const chip = document.createElement("span");
-      const info = byName[name];
-      chip.className = `flag-chip ${info?.category === "info" ? "info" : "bad"}`;
+      chip.className = "flag-chip";
       chip.textContent = name;
-      chip.title = info ? info.description : name;
+      chip.title = byName[name]?.description || name;
       chips.push(chip);
     }
   } else {
     const members = item.members;
     el.infoTitle.textContent = item.kind === "diff" ? "This difference" : "This stack";
-    if (item.epoch) nodes.push(...fact("Visit", `${item.epoch.index + 1} of ${V.epochs.length} · ${visitRange(item.epoch)}`));
-    nodes.push(...fact("Images added", String(members.length)));
-    if (item.kind === "diff") nodes.push(...fact("Subtracted", `${item.others.length} images from other visits`));
+    if (item.epoch) {
+      nodes.push(...fact("Visit", `${item.epoch.index + 1} of ${V.epochs.length}`));
+      nodes.push(...fact("Dates", visitRange(item.epoch)));
+    }
+    nodes.push(...fact("Images", String(members.length)));
+    if (item.kind === "diff") nodes.push(...fact("Subtracted", String(item.others.length)));
     const dets = [...new Set(members.map((f) => f.detector))].sort();
     nodes.push(...fact("Detectors", dets.map((d) => `D${d}`).join(", ")));
     const waves = members.map((f) => f.wavelength).filter((x) => x != null);
     if (waves.length) nodes.push(...fact("Wavelengths", `${Math.min(...waves).toFixed(2)}–${Math.max(...waves).toFixed(2)} µm`));
     const flagged = members.filter((f) => (f.meta?.target_flags || []).some((n) => !["SOURCE", "FULLSAMPLE"].includes(n))).length;
-    nodes.push(...fact("Images flagged at the target", `${flagged} of ${members.length}`, flagged ? "warn" : "ok"));
+    nodes.push(...fact("Flagged at target", `${flagged} of ${members.length}`));
   }
   el.facts.replaceChildren(...nodes);
   el.flagChips.replaceChildren(...chips);
@@ -989,25 +984,28 @@ function updateProgress() {
   const working = V.loading || V.searching;
   el.loadbar.style.width = total ? `${((ready + failed.length) / total) * 100}%` : "0";
   el.loadbar.classList.toggle("done", !working);
-  el.progressText.textContent = V.searching ? "Searching…" : total === 0 ? "" :
-    `Loaded ${ready} of ${total} images` + (failed.length ? ` · ${failed.length} failed` : "");
   el.retryFailed.hidden = failed.length === 0 || working;
   el.failures.hidden = failed.length === 0;
   if (failed.length) {
-    el.failures.querySelector("summary").textContent = `${failed.length} image${failed.length === 1 ? "" : "s"} skipped`;
+    el.failures.querySelector("summary").textContent = `Failed images (${failed.length})`;
     el.failures.querySelector("ul").replaceChildren(...failed.slice(0, 200).map((f) => {
       const li = document.createElement("li");
-      li.textContent = `${f.date_iso.slice(0, 16).replace("T", " ")} · D${f.detector} · ${f.error}`;
+      li.textContent = `${f.date_iso.slice(0, 16).replace("T", " ")} D${f.detector}: ${f.error}`;
       return li;
     }));
   }
+  const nodes = [];
+  if (V.searching) nodes.push(...fact("Status", "Searching"));
   if (V.center && total) {
-    el.dataSource.textContent = `Searched ${V.collections.join(" and ")} (found automatically at IRSA, so new data releases appear by themselves). ` +
-      `${total} images from ${V.frames[0].date_iso.slice(0, 10)} to ${V.frames[total - 1].date_iso.slice(0, 10)}, ` +
-      `in ${V.epochs.length} visit${V.epochs.length === 1 ? "" : "s"}. Field ${V.query.fov}° = ${V.grid} × ${V.grid} pixels.`;
-  } else {
-    el.dataSource.textContent = "";
+    nodes.push(...fact("Loaded", `${ready} of ${total}`));
+    if (failed.length) nodes.push(...fact("Failed", String(failed.length)));
+    nodes.push(...fact("Visits", String(V.epochs.length)));
+    nodes.push(...fact("First", V.frames[0].date_iso.slice(0, 10)));
+    nodes.push(...fact("Last", V.frames[total - 1].date_iso.slice(0, 10)));
+    nodes.push(...fact("Field", `${V.query.fov}°, ${V.grid} px`));
+    nodes.push(...fact("Releases", V.collections.join(", ")));
   }
+  el.dataFacts.replaceChildren(...nodes);
 }
 
 function updateMessage() {
@@ -1015,7 +1013,7 @@ function updateMessage() {
   if (V.items.length > 0) { el.message.classList.add("hidden"); return; }
   const wanted = V.frames.filter(matches);
   if (V.mode === "difference" && V.epochs.length < 2) {
-    showMessage("Differences need at least two visits; this field has one.");
+    showMessage("Only one visit: no difference to show.");
   } else if (wanted.some((f) => f.status === "pending") || V.loading) {
     showMessage(`Loading images${V.detector ? ` for D${V.detector}` : ""}…`);
   } else {
@@ -1239,7 +1237,7 @@ for (const type of ["pointerup", "pointercancel"]) el.timeline.addEventListener(
 el.spectrum.addEventListener("pointermove", (event) => {
   const p = spectrumPointAt(event);
   el.spectrum.style.cursor = p ? "pointer" : "crosshair";
-  el.specReadout.textContent = p ? describePoint(p) : "";
+  setParts(el.specReadout, p ? describePoint(p) : []);
 });
 el.spectrum.addEventListener("click", (event) => {
   const p = spectrumPointAt(event);

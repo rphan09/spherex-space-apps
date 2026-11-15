@@ -18,7 +18,6 @@
     <div id="markers" class="markers"></div>
     <div id="probe" class="probe" hidden aria-hidden="true"></div>
     <div id="card" class="card" hidden role="dialog" aria-labelledby="card-title">
-      <p id="card-kicker" class="label"></p>
       <h2 id="card-title"></h2>
       <p id="card-text" class="card-text"></p>
       <p id="card-coords" class="card-coords num"></p>
@@ -60,18 +59,17 @@
       <input id="wave" type="range" min="0" max="99" step="1" value="40" aria-label="Wavelength">
       <output id="wave-value" class="num" for="wave"></output>
     </div>
-    <p id="layer-note" class="layer-note">Blue 1.25&nbsp;µm · green 2.19&nbsp;µm · red 3.29&nbsp;µm (warm dust)</p>
+    <p id="layer-note" class="layer-note">Blue 1.25&nbsp;µm, green 2.19&nbsp;µm, red 3.29&nbsp;µm</p>
     <p class="readout num"><span id="cursor">—</span><span id="fov"></span></p>
   </footer>
 
   <!-- ========================== BLINK VIEWER ========================== -->
   <section id="viewer" class="viewer" hidden aria-labelledby="v-title">
     <header class="v-head">
-      <button id="v-back" type="button" class="btn ghost">← Back to the sky</button>
+      <button id="v-back" type="button" class="btn ghost">Back to sky</button>
       <div class="v-titles">
-        <p id="v-kicker" class="label">Blink viewer</p>
         <h2 id="v-title">—</h2>
-        <p id="v-coords" class="num muted"></p>
+        <p id="v-coords" class="num"></p>
       </div>
       <div class="v-head-actions">
         <span class="field-label">Field of view</span>
@@ -88,40 +86,31 @@
         <section class="panel-sec" id="sec-mode">
           <h3>Show</h3>
           <div id="mode-list" class="mode-list" role="radiogroup" aria-label="View">
-            <button type="button" class="mode" role="radio" data-mode="frames" aria-checked="true">
-              <strong>Every image</strong><span>Each SPHEREx exposure in date order.</span>
-            </button>
-            <button type="button" class="mode" role="radio" data-mode="epochs" aria-checked="false">
-              <strong>Visit stacks</strong><span>Images from each visit added together: less noise, same timeline.</span>
-            </button>
-            <button type="button" class="mode" role="radio" data-mode="difference" aria-checked="false">
-              <strong>Differences</strong><span>Each visit minus all the others. Anything that moved or changed lights up.</span>
-            </button>
-            <button type="button" class="mode" role="radio" data-mode="detectors" aria-checked="false">
-              <strong>Detector stacks</strong><span>Everything each detector saw, added together: the deepest view in each wavelength range.</span>
-            </button>
+            <button type="button" class="mode" role="radio" data-mode="frames" aria-checked="true">Every image</button>
+            <button type="button" class="mode" role="radio" data-mode="epochs" aria-checked="false">Visit stacks</button>
+            <button type="button" class="mode" role="radio" data-mode="difference" aria-checked="false">Differences</button>
+            <button type="button" class="mode" role="radio" data-mode="detectors" aria-checked="false">Detector stacks</button>
           </div>
         </section>
 
         <section class="panel-sec" id="sec-detectors">
           <h3>Detector</h3>
           <div id="detectors" class="det-grid" role="group" aria-label="Detector filter"></div>
-          <p class="hint">Each detector sees its own range of wavelengths, and stars look different at different wavelengths. Blink one detector at a time for a fair comparison.</p>
         </section>
 
         <section class="panel-sec" id="sec-overlays">
           <h3>Overlays</h3>
           <div class="toggles">
             <label class="toggle"><input id="ov-crosshair" type="checkbox" checked><span class="switch"></span>
-              <span class="t-text">Target crosshair</span><span class="swatch" style="--sw: var(--accent); --sw-r: 2px"></span></label>
+              <span class="t-text">Crosshair</span><span class="swatch" style="--sw: var(--accent); --sw-r: 2px"></span></label>
             <label class="toggle"><input id="ov-gaia" type="checkbox"><span class="switch"></span>
-              <span class="t-text">Gaia DR3 stars<small id="ov-gaia-note">Moved to each image's date</small></span><span class="swatch" style="--sw: #ecebe7"></span></label>
+              <span class="t-text">Gaia DR3</span><span class="swatch" style="--sw: #ecebe7"></span></label>
             <label class="toggle"><input id="ov-allwise" type="checkbox"><span class="switch"></span>
-              <span class="t-text">AllWISE sources<small id="ov-allwise-note">WISE positions, 2010</small></span><span class="swatch" style="--sw: #c49bff; --sw-r: 2px"></span></label>
+              <span class="t-text">AllWISE</span><span class="swatch" style="--sw: #c49bff; --sw-r: 2px"></span></label>
             <label class="toggle"><input id="ov-flags" type="checkbox"><span class="switch"></span>
-              <span class="t-text">Quality flags<small>Pixels SPHEREx marked as affected</small></span><span class="swatch" style="--sw: var(--danger); --sw-r: 2px"></span></label>
+              <span class="t-text">Quality flags</span><span class="swatch" style="--sw: var(--danger); --sw-r: 2px"></span></label>
             <label class="toggle"><input id="ov-aperture" type="checkbox" checked><span class="switch"></span>
-              <span class="t-text">Spectrum aperture<small>Click the image to move it</small></span><span class="swatch" style="--sw: var(--d2)"></span></label>
+              <span class="t-text">Aperture</span><span class="swatch" style="--sw: var(--d2)"></span></label>
           </div>
         </section>
       </aside>
@@ -134,9 +123,11 @@
             <div class="caption">
               <div class="caption-main">
                 <span id="cap-title" class="caption-title num"></span>
-                <span class="caption-sub"><span id="cap-chip" class="chip"></span><span id="cap-sub" class="num"></span></span>
+                <span class="caption-sub"><span id="cap-chip" class="chip"></span><span id="cap-sub" class="caption-parts num"></span></span>
               </div>
-              <div class="compass">N ↑<br>E ←</div>
+              <svg class="compass" viewBox="0 0 44 44" aria-label="North up, east left">
+                <path d="M34 34V10M34 34H10"/><text x="34" y="7">N</text><text x="3" y="38">E</text>
+              </svg>
             </div>
             <div id="legend" class="legend" hidden></div>
             <div class="zoom">
@@ -150,14 +141,14 @@
         </div>
 
         <div class="transport">
-          <button id="prev" type="button" class="icon-btn" title="Previous (←)" aria-label="Previous">
+          <button id="prev" type="button" class="icon-btn" title="Previous (left arrow key)" aria-label="Previous">
             <svg viewBox="0 0 20 20"><path d="M12.5 5L7.5 10l5 5"/></svg>
           </button>
           <button id="play" type="button" class="icon-btn play" title="Play / pause (space)" aria-label="Pause">
             <svg class="i-pause" viewBox="0 0 20 20"><path d="M7 5v10M13 5v10"/></svg>
             <svg class="i-play" viewBox="0 0 20 20"><path d="M7 5l8 5-8 5z" class="fill"/></svg>
           </button>
-          <button id="next" type="button" class="icon-btn" title="Next (→)" aria-label="Next">
+          <button id="next" type="button" class="icon-btn" title="Next (right arrow key)" aria-label="Next">
             <svg viewBox="0 0 20 20"><path d="M7.5 5l5 5-5 5"/></svg>
           </button>
           <span id="frame-count" class="frame-count num">0 / 0</span>
@@ -168,7 +159,7 @@
 
         <div class="timeline" id="timeline-wrap">
           <canvas id="timeline" height="52" aria-label="Observation dates. Click to jump."></canvas>
-          <div class="timeline-ends num"><span id="t-start"></span><span id="t-note"></span><span id="t-end"></span></div>
+          <div class="timeline-ends num"><span id="t-start"></span><span id="t-end"></span></div>
         </div>
       </main>
 
@@ -183,12 +174,10 @@
         <section class="panel-sec" id="sec-spectrum">
           <h3>Spectrum</h3>
           <div class="spectrum-plot"><canvas id="spectrum" height="220" aria-label="Brightness against wavelength"></canvas></div>
-          <p id="spec-readout" class="spec-readout num"></p>
+          <p id="spec-readout" class="spec-readout caption-parts num"></p>
           <div class="spec-actions">
-            <span class="muted" style="font-size: 12.5px">Hollow points: flagged pixels in the aperture</span>
             <button id="spec-csv" type="button" class="btn ghost small">Download CSV</button>
           </div>
-          <p class="hint">Every SPHEREx image sees this spot at one wavelength, so all the images together make a spectrum. It fills in as images load. Click a point to show that image. Aperture photometry, background from a surrounding ring, no aperture correction.</p>
         </section>
 
         <section class="panel-sec" id="sec-display">
@@ -210,15 +199,13 @@
             <label class="check"><input id="lock" type="checkbox"> Same brightness range for every image</label>
             <div><button id="reset-display" type="button" class="btn ghost small">Reset display</button></div>
           </div>
-          <p class="hint">Each SPHEREx pixel is 6.2″ wide. North is up, east is left. Saturated star cores, which the pipeline leaves empty, are drawn white; areas no detector covered are dark blue. Scroll on the image to zoom, drag to move.</p>
         </section>
 
         <section class="panel-sec" id="sec-loading">
           <h3>Data</h3>
-          <div class="status-line"><span id="progress-text"></span>
-            <button id="retry-failed" type="button" class="btn ghost small" hidden>Retry failed</button></div>
+          <dl id="data-facts" class="facts"></dl>
+          <div class="status-line"><button id="retry-failed" type="button" class="btn ghost small" hidden>Retry failed</button></div>
           <details id="failures" class="failures" hidden><summary></summary><ul></ul></details>
-          <p id="data-source" class="hint"></p>
         </section>
       </aside>
     </div>
@@ -226,7 +213,6 @@
 
   <dialog id="share" class="share" aria-labelledby="share-title">
     <h3 id="share-title">Share or embed this view</h3>
-    <p>The link opens straight into this field, with the same field of view, view and detector.</p>
     <label for="share-link">Link</label>
     <div class="copy-row"><input id="share-link" readonly><button type="button" class="btn small" data-copy="share-link">Copy</button></div>
     <label for="share-embed">Embed in another website</label>
@@ -239,7 +225,6 @@
   <!-- ========================== START SCREEN ========================== -->
   <section id="intro" class="intro" role="dialog" aria-modal="true" aria-labelledby="intro-title">
     <div class="intro-inner">
-      <p class="intro-eyebrow">A NASA Space Apps project built on SPHEREx data</p>
       <h1 id="intro-title">SPHEREx <span>Blink</span></h1>
       <p class="intro-lede">
         Fly across the infrared sky as NASA's SPHEREx telescope sees it. Then pick any spot and flip
@@ -278,12 +263,12 @@
 
   <div id="tour-spot" class="tour-spot" hidden></div>
   <div id="tour-tip" class="tour-tip" role="dialog" aria-live="polite" aria-labelledby="tour-title" hidden>
-    <p id="tour-count" class="tour-count"></p>
     <h3 id="tour-title"></h3>
     <p id="tour-text"></p>
     <div class="tour-actions">
       <button id="tour-skip" type="button" class="btn ghost small">End tour</button>
       <span class="tour-nav">
+        <span id="tour-count" class="tour-count num"></span>
         <button id="tour-back" type="button" class="btn ghost small">Back</button>
         <button id="tour-next" type="button" class="btn primary small">Next</button>
       </span>

@@ -127,7 +127,7 @@ async function showStep(index) {
   const step = TOUR[index];
   el.tip.hidden = false;
   el.spot.hidden = false;
-  el.count.textContent = `Step ${index + 1} of ${TOUR.length}`;
+  el.count.textContent = `${index + 1} / ${TOUR.length}`;
   el.title.textContent = step.title;
   el.text.textContent = step.text;
   el.back.disabled = index === 0;

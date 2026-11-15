@@ -12,7 +12,7 @@ const DRIFT_DEG_PER_MS = 0.0009;
 
 const el = {
   sky: $("sky"), skyWrap: $("sky-wrap"), markers: $("markers"), probe: $("probe"), loading: $("sky-loading"),
-  card: $("card"), cardKicker: $("card-kicker"), cardTitle: $("card-title"), cardText: $("card-text"),
+  card: $("card"), cardTitle: $("card-title"), cardText: $("card-text"),
   cardCoords: $("card-coords"), cardBlink: $("card-blink"), cardClose: $("card-close"),
   targetsToggle: $("targets-toggle"), targetsList: $("targets-list"),
   spectrum: $("spectrum-slider"), wave: $("wave"), waveValue: $("wave-value"), layerNote: $("layer-note"),
@@ -94,7 +94,7 @@ async function loadSkyFrames() {
 
 function updateWaveLabel() {
   const frame = sky.frames[Number(el.wave.value)];
-  el.waveValue.textContent = frame ? `${frame.wavelength_um.toFixed(3)} µm · D${frame.detector}` : "";
+  el.waveValue.textContent = frame ? `${frame.wavelength_um.toFixed(3)} µm (D${frame.detector})` : "";
 }
 
 function setLayer(layer) {
@@ -213,8 +213,6 @@ export function selectTarget(target, { fly }) {
   sky.selected = { kind: "target", ra: target.ra, dec: target.dec, target };
   markActive(target.name);
   el.probe.hidden = true;
-  const label = sky.categories[target.category] || "";
-  el.cardKicker.textContent = target.test_target ? `${label} · challenge test target` : label;
   el.cardTitle.textContent = target.name;
   el.cardText.textContent = target.description || "";
   el.cardText.hidden = !target.description;
@@ -231,10 +229,8 @@ export function selectSpot(ra, dec) {
   markActive(null);
   el.probe.hidden = false;
   el.probe.classList.remove("pulse"); void el.probe.offsetWidth; el.probe.classList.add("pulse");
-  el.cardKicker.textContent = "Selected spot";
   el.cardTitle.textContent = formatCoords(ra, dec);
-  el.cardText.textContent = "See every SPHEREx image of the field around this point, in date order.";
-  el.cardText.hidden = false;
+  el.cardText.hidden = true;
   el.cardCoords.textContent = `${ra.toFixed(5)}°  ${dec >= 0 ? "+" : ""}${dec.toFixed(5)}°`;
   el.cardBlink.textContent = "Open blink viewer";
   showCard();

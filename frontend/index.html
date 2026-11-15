@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SPHEREx Blink</title>
+  <meta name="description" content="Fly around the SPHEREx infrared sky and blink every SPHEREx image of any spot to find moving and variable objects.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23f5b54a' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23f5b54a'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&family=Overpass:wght@400;500;600;700&family=Overpass+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- The sky: Aladin Lite renders into #sky; targets, the clicked-point probe
+       and the info card are positioned over it in sky pixel coordinates. -->
+  <div id="sky-wrap" class="sky-wrap">
+    <div id="sky" class="sky" role="application" aria-label="SPHEREx sky map. Drag to look around, scroll to zoom, click a spot to inspect it."></div>
+    <div id="markers" class="markers"></div>
+    <div id="probe" class="probe" hidden aria-hidden="true"></div>
+    <div id="card" class="card" hidden role="dialog" aria-labelledby="card-title">
+      <p id="card-kicker" class="kicker"></p>
+      <h2 id="card-title"></h2>
+      <p id="card-text" class="card-text"></p>
+      <p id="card-coords" class="mono card-coords"></p>
+      <div class="card-actions">
+        <button id="card-blink" type="button" class="btn primary">Blink this spot</button>
+        <button id="card-close" type="button" class="btn ghost">Close</button>
+      </div>
+    </div>
+    <div id="sky-loading" class="sky-loading">Loading the SPHEREx sky…</div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">SPHEREx</span>
+      <span class="brand-tool">Blink</span>
+    </div>
+    <form id="goto" class="goto" autocomplete="off">
+      <label class="field"><span>RA</span>
+        <input id="ra" name="ra" type="text" spellcheck="false" placeholder="08h55m02.6s or 133.761" required>
+      </label>
+      <label class="field"><span>Dec</span>
+        <input id="dec" name="dec" type="text" spellcheck="false" placeholder="−07d14m32s or −7.242" required>
+      </label>
+      <button type="submit" class="btn primary">Blink</button>
+    </form>
+    <button id="help" type="button" class="help-btn" title="About and tour" aria-label="About this site and guided tour">?</button>
+  </header>
+
+  <nav id="targets" class="targets" aria-label="Targets">
+    <button id="targets-toggle" type="button" class="targets-toggle" aria-expanded="true" aria-controls="targets-list">
+      Targets <span class="chev" aria-hidden="true"></span>
+    </button>
+    <div id="targets-list" class="targets-list"></div>
+  </nav>
+
+  <footer class="skybar">
+    <div class="layer-switch" role="radiogroup" aria-label="Sky layer">
+      <button type="button" role="radio" data-layer="rgb" aria-checked="true">Colour</button>
+      <button type="button" role="radio" data-layer="mono" aria-checked="false">One wavelength</button>
+    </div>
+    <div id="spectrum" class="spectrum" hidden>
+      <input id="wave" type="range" min="0" max="99" step="1" value="40" aria-label="Wavelength">
+      <output id="wave-value" class="mono" for="wave"></output>
+    </div>
+    <p id="layer-note" class="layer-note">Blue 1.25&nbsp;µm · green 2.19&nbsp;µm · red 3.29&nbsp;µm (warm dust)</p>
+    <p class="readout mono"><span id="cursor">—</span><span id="fov"></span></p>
+  </footer>
+
+  <aside id="blink" class="blink" aria-labelledby="blink-title" hidden>
+    <header class="blink-head">
+      <div>
+        <p id="blink-kicker" class="kicker">Blink</p>
+        <h2 id="blink-title">—</h2>
+        <p id="blink-coords" class="mono blink-coords"></p>
+      </div>
+      <button id="blink-close" type="button" class="icon-btn" aria-label="Close blink viewer" title="Close (Esc)">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
+      </button>
+    </header>
+
+    <div class="stage">
+      <canvas id="canvas" width="720" height="720" aria-label="Animation of SPHEREx images of this spot"></canvas>
+      <div class="loadbar" aria-hidden="true"><span id="loadbar"></span></div>
+      <div id="message" class="message"></div>
+      <div class="zoom">
+        <button id="zoom-out" type="button" class="icon-btn" aria-label="Zoom out"><svg viewBox="0 0 20 20"><path d="M5 10h10"/></svg></button>
+        <span id="zoom-value" class="mono">1×</span>
+        <button id="zoom-in" type="button" class="icon-btn" aria-label="Zoom in"><svg viewBox="0 0 20 20"><path d="M5 10h10M10 5v10"/></svg></button>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="prev" type="button" class="icon-btn" title="Previous frame (←)" aria-label="Previous frame">
+        <svg viewBox="0 0 20 20"><path d="M12.5 5L7.5 10l5 5"/></svg>
+      </button>
+      <button id="play" type="button" class="icon-btn play" title="Play / pause (space)" aria-label="Pause">
+        <svg class="i-pause" viewBox="0 0 20 20"><path d="M7 5v10M13 5v10"/></svg>
+        <svg class="i-play" viewBox="0 0 20 20"><path d="M7 5l8 5-8 5z" class="fill"/></svg>
+      </button>
+      <button id="next" type="button" class="icon-btn" title="Next frame (→)" aria-label="Next frame">
+        <svg viewBox="0 0 20 20"><path d="M7.5 5l5 5-5 5"/></svg>
+      </button>
+      <span id="frame-count" class="mono frame-count">0 / 0</span>
+      <label class="speed"><span id="fps-value" class="mono">4 fps</span>
+        <input id="fps" type="range" min="0.5" max="20" step="0.5" value="4" aria-label="Playback speed">
+      </label>
+    </div>
+
+    <div class="timeline">
+      <canvas id="timeline" height="44" aria-label="Observation dates. Click to jump to a frame."></canvas>
+      <div class="timeline-ends mono"><span id="t-start"></span><span id="t-end"></span></div>
+    </div>
+
+    <div id="detectors" class="detectors" role="group" aria-label="Detector filter"></div>
+
+    <div class="status">
+      <span id="progress-text"></span>
+      <button id="retry-failed" type="button" class="btn ghost small" hidden>Retry failed</button>
+    </div>
+    <details id="failures" class="failures" hidden><summary></summary><ul></ul></details>
+
+    <details class="display">
+      <summary>Display</summary>
+      <div class="display-grid">
+        <div class="seg" role="radiogroup" aria-label="Pixel rendering">
+          <button type="button" role="radio" data-render="smooth" aria-checked="true">Smooth</button>
+          <button type="button" role="radio" data-render="pixels" aria-checked="false">Pixels</button>
+        </div>
+        <label class="slider"><span>Black point</span><output id="lo-value" class="mono"></output>
+          <input id="lo" type="range" min="0" max="60" step="0.5">
+        </label>
+        <label class="slider"><span>White point</span><output id="hi-value" class="mono"></output>
+          <input id="hi" type="range" min="80" max="100" step="0.1">
+        </label>
+        <label class="slider"><span>Stretch</span><output id="asinh-value" class="mono"></output>
+          <input id="asinh" type="range" min="0" max="50" step="1">
+        </label>
+        <label class="check"><input id="lock" type="checkbox"> Same brightness range for every frame</label>
+        <label class="check"><input id="marker" type="checkbox" checked> Mark the target</label>
+        <button id="reset-contrast" type="button" class="btn ghost small">Reset display</button>
+      </div>
+      <p class="hint">Each SPHEREx pixel is 6.2″ wide, so this 0.1° field is 59 pixels across. North is up, east is left. Saturated star cores, which the pipeline leaves empty, are drawn white; areas outside the detector are dark blue.</p>
+    </details>
+  </aside>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <!-- Start screen: what the site is, and a way into the guided tour. -->
+  <section id="intro" class="intro" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+    <div class="intro-inner">
+      <p class="intro-eyebrow">A NASA Space Apps project built on SPHEREx data</p>
+      <h1 id="intro-title">SPHEREx <em>Blink</em></h1>
+      <p class="intro-lede">
+        Fly across the infrared sky as NASA's SPHEREx telescope sees it. Then pick any spot and flip
+        through every picture SPHEREx has taken of it, oldest to newest. Stars stay put; anything
+        that moves or changes brightness jumps out.
+      </p>
+
+      <ol class="intro-steps">
+        <li><strong>Explore the sky.</strong> Drag to look around, scroll to zoom, switch between colour and single wavelengths.</li>
+        <li><strong>Pick something.</strong> Choose one of the marked targets, click any patch of sky, or type coordinates.</li>
+        <li><strong>Blink it.</strong> Watch the images play in date order and spot what changes.</li>
+      </ol>
+
+      <div class="intro-actions">
+        <button id="intro-tour" type="button" class="btn primary large">Take the tour</button>
+        <button id="intro-start" type="button" class="btn ghost large">Start exploring</button>
+      </div>
+
+      <details class="intro-more">
+        <summary>What is SPHEREx?</summary>
+        <p>
+          SPHEREx is a NASA space telescope launched in March 2025. Every six months it maps the whole
+          sky in 102 infrared colours, from 0.75 to 5 micrometres: wavelengths our eyes cannot see,
+          where dust glows and cold objects shine. Its images come from six detectors, each covering
+          its own slice of that range.
+        </p>
+      </details>
+      <details class="intro-more">
+        <summary>What is blinking?</summary>
+        <p>
+          Astronomers have found moving and changing objects for over a century by flipping between
+          pictures of the same patch of sky taken at different times. Clyde Tombaugh discovered Pluto
+          this way in 1930. Distant stars stay fixed, but a nearby star, a brown dwarf or a star
+          that pulsates shifts or flickers from one picture to the next.
+        </p>
+      </details>
+    </div>
+  </section>
+
+  <!-- Guided tour: a spotlight around one control plus an explanation card. -->
+  <div id="tour-spot" class="tour-spot" hidden></div>
+  <div id="tour-tip" class="tour-tip" role="dialog" aria-live="polite" aria-labelledby="tour-title" hidden>
+    <p id="tour-count" class="tour-count"></p>
+    <h3 id="tour-title"></h3>
+    <p id="tour-text"></p>
+    <div class="tour-actions">
+      <button id="tour-skip" type="button" class="btn ghost small">End tour</button>
+      <span class="tour-nav">
+        <button id="tour-back" type="button" class="btn ghost small">Back</button>
+        <button id="tour-next" type="button" class="btn primary small">Next</button>
+      </span>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

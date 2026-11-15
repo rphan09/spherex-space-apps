@@ -1,0 +1,4 @@
+# Store text with LF line endings, whatever OS the commit is made on.
+* text=auto eol=lf
+# Third-party bundle: keep byte-for-byte.
+frontend/vendor/** -text

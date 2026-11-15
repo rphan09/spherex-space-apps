@@ -170,10 +170,58 @@ def _record_from_row(row) -> ImageRecord | None:
     )
 
 
-def query_sia(coord: SkyCoord) -> list[ImageRecord]:
+_RELEASE_RE = re.compile(r"^spherex_(dr|qr)(\d+)$")
+_collections_memo: tuple[float, list[str]] | None = None
+
+
+def _release_order(name: str) -> tuple[int, int]:
+    """Sort key: data releases (dr) before quick releases (qr), newest first."""
+    kind, number = _RELEASE_RE.match(name).groups()
+    return (0 if kind == "dr" else 1, -int(number))
+
+
+def pick_collections(names: list[str]) -> list[str]:
+    """Choose the wide-survey spectral-image collections from IRSA's list, best first."""
+    return sorted({n for n in names if _RELEASE_RE.match(n)}, key=_release_order)
+
+
+def active_collections() -> list[str]:
+    """SIA2 collections to search: discovered at IRSA (daily), else ``config.COLLECTIONS``.
+
+    New data releases therefore appear without any code change.  Blocking.
+    """
+    global _collections_memo
+    if not config.AUTO_DISCOVER_COLLECTIONS:
+        return list(config.COLLECTIONS)
+    now = time.time()
+    if _collections_memo and now - _collections_memo[0] < config.COLLECTIONS_CACHE_TTL_SECONDS:
+        return _collections_memo[1]
+    path = cache.collections_path()
+    cached = cache.read_json(path, max_age=config.COLLECTIONS_CACHE_TTL_SECONDS)
+    if isinstance(cached, list) and cached:
+        _collections_memo = (now, cached)
+        return cached
+    try:
+        from astroquery.ipac.irsa import Irsa
+
+        table = Irsa.list_collections(servicetype="SIA", filter="spherex")
+        found = pick_collections([str(name) for name in table["collection"]])
+    except Exception as exc:
+        logger.warning("could not list SPHEREx collections at IRSA (%s); using config.COLLECTIONS", exc)
+        found = []
+    collections = found or list(config.COLLECTIONS)
+    if found:
+        cache.write_json(path, found)
+        logger.info("SPHEREx collections in use: %s", ", ".join(found))
+    _collections_memo = (now, collections)
+    return collections
+
+
+def query_sia(coord: SkyCoord, collections: list[str] | None = None) -> list[ImageRecord]:
     """Run the SIA2 query (blocking, uncached) and return time-sorted records."""
     from astroquery.ipac.irsa import Irsa  # imported lazily: slow import
 
+    collections = collections or active_collections()
     started = time.perf_counter()
     table = None
     error: Exception | None = None
@@ -181,7 +229,7 @@ def query_sia(coord: SkyCoord) -> list[ImageRecord]:
         try:
             table = Irsa.query_sia(
                 pos=(coord, config.SIA_RADIUS_ARCSEC * u.arcsec),
-                collection=config.COLLECTIONS,
+                collection=collections,
             )
             break
         except Exception as exc:  # IRSA occasionally returns transient 5xx errors
@@ -197,7 +245,7 @@ def query_sia(coord: SkyCoord) -> list[ImageRecord]:
             f"({type(exc).__name__}). Please try again in a moment."
         ) from exc
 
-    priority = {name: index for index, name in enumerate(config.COLLECTIONS)}
+    priority = {name: index for index, name in enumerate(collections)}
     by_id: dict[str, ImageRecord] = {}
     for row in table:
         if "dataproduct_subtype" in table.colnames and str(row["dataproduct_subtype"]) != "science":
@@ -214,7 +262,7 @@ def query_sia(coord: SkyCoord) -> list[ImageRecord]:
     logger.info(
         "SIA search at RA=%.6f Dec=%+.6f: %d images found in %.2f s (collections: %s)",
         coord.ra.deg, coord.dec.deg, len(records), time.perf_counter() - started,
-        ", ".join(config.COLLECTIONS),
+        ", ".join(collections),
     )
     return records
 
@@ -228,7 +276,8 @@ def search_images(coord: SkyCoord) -> list[ImageRecord]:
     Results are cached in memory and on disk for ``SIA_CACHE_TTL_SECONDS``.
     Blocking; call through ``asyncio.to_thread`` from async code.
     """
-    path = cache.sia_path(coord.ra.deg, coord.dec.deg)
+    collections = active_collections()
+    path = cache.sia_path(coord.ra.deg, coord.dec.deg, collections)
     key = str(path)
     memo = _search_memo.get(key)
     if memo is not None and time.time() - memo[0] < config.SIA_CACHE_TTL_SECONDS:
@@ -249,7 +298,7 @@ def search_images(coord: SkyCoord) -> list[ImageRecord]:
     # Runs in a worker thread; the counter is a plain int, so this is safe
     # enough for a priority hint.
     with priority_work():
-        records = query_sia(coord)
+        records = query_sia(coord, collections)
     cache.write_json(path, [asdict(record) for record in records])
     _search_memo[key] = (time.time(), records)
     return records
@@ -410,6 +459,7 @@ class Cutout:
 
     image: np.ndarray
     zodi: np.ndarray
+    flags: np.ndarray | None
     header: fits.Header
     wavelength_um: float | None
     bandwidth_um: float | None
@@ -468,9 +518,9 @@ async def close_client() -> None:
         _client = None
 
 
-def cutout_url(access_url: str, coord: SkyCoord) -> str:
+def cutout_url(access_url: str, coord: SkyCoord, fov: float = config.FOV_DEG) -> str:
     """Build the IRSA cutout URL for ``access_url`` centred on ``coord``."""
-    size = config.FOV_DEG * config.CUTOUT_PADDING
+    size = fov * config.CUTOUT_PADDING
     return f"{access_url}?center={coord.ra.deg:.6f},{coord.dec.deg:.6f}deg&size={size:.4f}deg"
 
 
@@ -619,31 +669,71 @@ def wavelength_at(table: WaveTable, header: fits.Header, coord: SkyCoord) -> tup
     return table.lookup(full_x, full_y)
 
 
-def _parse_cutout(raw: bytes) -> tuple[np.ndarray, np.ndarray, fits.Header]:
-    """Read the IMAGE and ZODI arrays and the IMAGE header from cutout bytes."""
+def _parse_cutout(raw: bytes) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, fits.Header]:
+    """Read the IMAGE, ZODI and FLAGS arrays and the IMAGE header from cutout bytes."""
     try:
         with fits.open(io.BytesIO(raw), memmap=False) as hdulist:
             image = np.array(hdulist["IMAGE"].data, dtype=np.float32)
             zodi = np.array(hdulist["ZODI"].data, dtype=np.float32)
+            flags = np.array(hdulist["FLAGS"].data, dtype=np.int64) if "FLAGS" in hdulist else None
             header = hdulist["IMAGE"].header.copy()
     except Exception as exc:
         raise ArchiveError(f"The cutout is not a readable SPHEREx image ({exc})") from exc
     if image.ndim != 2 or image.shape != zodi.shape:
         raise ArchiveError("The cutout has an unexpected shape")
-    return image, zodi, header
+    if flags is not None and flags.shape != image.shape:
+        flags = None
+    return image, zodi, flags, header
 
 
-async def fetch_cutout(record: ImageRecord, coord: SkyCoord) -> Cutout:
+#: Image-header keywords shown as per-frame metadata: (key, label, kind).
+HEADER_METADATA: tuple[tuple[str, str, str], ...] = (
+    ("L2DQAFLG", "Quality check (L2 DQA)", "text"),
+    ("PSF_FWHM", "PSF width (arcsec)", "float"),
+    ("XPOSURE", "Exposure (s)", "float"),
+    ("AURORA_CONT", "Aurora contamination", "bool"),
+    ("SHUTTLE_GLOW_CONT", "Shuttle-glow contamination", "bool"),
+    ("HE_AIRGLOW_CONT", "Helium airglow (detectors 1-2)", "bool"),
+    ("OBS_IN_SBAND", "During S-band radio transmission", "bool"),
+    ("L2 N_TRANSIENT", "Cosmic-ray pixels in image", "int"),
+    ("NSNOWSRC", "Snowball events in image", "int"),
+    ("L2 SATSTRKS", "Satellite streaks in image", "int"),
+)
+
+
+def header_metadata(header: fits.Header) -> dict[str, object]:
+    """Pick the quality and contamination keywords listed in ``HEADER_METADATA``."""
+    result: dict[str, object] = {}
+    for key, _label, kind in HEADER_METADATA:
+        if key not in header:
+            continue
+        value = header[key]
+        try:
+            if kind == "bool":
+                value = value if isinstance(value, bool) else str(value).strip().lower() in ("t", "true", "1")
+            elif kind == "float":
+                value = round(float(value), 3)
+            elif kind == "int":
+                value = int(value)
+            else:
+                value = str(value).strip()
+        except (TypeError, ValueError):
+            continue
+        result[key] = value
+    return result
+
+
+async def fetch_cutout(record: ImageRecord, coord: SkyCoord, fov: float = config.FOV_DEG) -> Cutout:
     """Download and read the cutout of ``record`` around ``coord``.
 
     Raises:
         ArchiveError: if the cutout cannot be downloaded or read.  A failure
             to obtain the wavelength only leaves ``wavelength_um`` as ``None``.
     """
-    url = cutout_url(record.access_url, coord)
+    url = cutout_url(record.access_url, coord, fov)
     with priority_work():
         raw = await download(url, image_hdus_only=True)
-    image, zodi, header = await asyncio.to_thread(_parse_cutout, raw)
+    image, zodi, flags, header = await asyncio.to_thread(_parse_cutout, raw)
 
     wavelength = bandwidth = None
     try:
@@ -651,5 +741,60 @@ async def fetch_cutout(record: ImageRecord, coord: SkyCoord) -> Cutout:
         wavelength, bandwidth = wavelength_at(table, header, coord)
     except Exception as exc:  # wavelength is a nicety, never fatal
         logger.warning("no wavelength for %s: %s", record.id, exc)
-    return Cutout(image=image, zodi=zodi, header=header,
+    return Cutout(image=image, zodi=zodi, flags=flags, header=header,
                   wavelength_um=wavelength, bandwidth_um=bandwidth)
+
+
+# --------------------------------------------------------------------------
+# Catalogue overlays
+# --------------------------------------------------------------------------
+
+_catalog_semaphore = asyncio.Semaphore(2)
+
+
+async def fetch_catalog(name: str, coord: SkyCoord, radius_deg: float) -> list[list[float | None]]:
+    """Cone search of an overlay catalogue (``config.CATALOGS``) through IRSA Gator.
+
+    Returns rows ``[ra, dec, pmra, pmdec, mag]`` (proper motions in mas/yr,
+    ``None`` when the catalogue has none), brightest first.  Cached on disk.
+
+    Raises:
+        ArchiveError: if IRSA cannot be reached.
+    """
+    spec = config.CATALOGS[name]
+    path = cache.catalog_path(name, coord.ra.deg, coord.dec.deg, radius_deg)
+    cached = cache.read_json(path)
+    if cached is not None:
+        return cached
+
+    columns = [c for c in spec["columns"].values() if c]
+    params = {
+        "catalog": spec["table"], "spatial": "cone", "objstr": f"{coord.ra.deg:.6f} {coord.dec.deg:+.6f}",
+        "radius": f"{radius_deg * 3600:.1f}", "radunits": "arcsec", "outfmt": "1", "selcols": ",".join(columns),
+    }
+    url = f"{config.GATOR_URL}?{httpx.QueryParams(params)}"
+    # Own small pool: a catalogue query must not wait behind hundreds of cutouts.
+    raw = await download(url, semaphore=_catalog_semaphore)
+    try:
+        from astropy.io import ascii as astro_ascii
+
+        table = await asyncio.to_thread(astro_ascii.read, raw.decode("utf-8", "replace"), format="ipac")
+    except Exception as exc:
+        raise ArchiveError(f"Could not read the {spec['label']} answer from IRSA ({exc})") from exc
+
+    def cell(row, key):
+        column = spec["columns"].get(key)
+        return None if not column else _optional_float(row[column])
+
+    rows = []
+    for row in table:
+        ra, dec = cell(row, "ra"), cell(row, "dec")
+        if ra is None or dec is None:
+            continue
+        rows.append([round(ra, 7), round(dec, 7), cell(row, "pmra"), cell(row, "pmdec"), cell(row, "mag")])
+    rows.sort(key=lambda r: 99.0 if r[4] is None else r[4])
+    rows = rows[: spec["limit"]]
+    cache.write_json(path, rows)
+    logger.info("%s: %d sources within %.3f deg of RA=%.5f Dec=%+.5f",
+                spec["label"], len(rows), radius_deg, coord.ra.deg, coord.dec.deg)
+    return rows

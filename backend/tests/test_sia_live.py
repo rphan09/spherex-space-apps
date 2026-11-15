@@ -2,8 +2,7 @@
 
 import pytest
 
-from backend import config
-from backend.data_access import parse_coordinates, query_sia
+from backend.data_access import active_collections, parse_coordinates, query_sia
 
 
 @pytest.mark.network
@@ -15,7 +14,7 @@ def test_sia_query_wise0855() -> None:
     assert [r.mjd for r in records] == sorted(r.mjd for r in records)
     assert len({r.id for r in records}) == len(records)
     for record in records:
-        assert record.collection in config.COLLECTIONS
+        assert record.collection in active_collections()
         assert 1 <= record.detector <= 6
         assert record.id.endswith(f"D{record.detector}")
         assert record.mjd > 60000  # after launch (2025)

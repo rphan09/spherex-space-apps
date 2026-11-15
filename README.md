@@ -1,11 +1,17 @@
 # SPHEREx Blink
 
-Fly around the infrared sky as NASA's SPHEREx mission sees it. Click any star,
-nebula or empty patch, and the app plays every SPHEREx image of that 0.1° spot
-as a looping "blink" animation in time order, so moving and variable objects
-stand out.
+Fly around the infrared sky as NASA's SPHEREx mission sees it. Click any
+star, nebula or empty patch to open every SPHEREx image of that spot in a
+full-screen blink viewer. There you can:
+- play the images in time order;
+- add up and subtract visits;
+- read the spectrum;
+- check the quality flags;
+- compare with Gaia and WISE.
 
-Every blink frame is zodiacal-light subtracted and reprojected onto the same
+Moving and variable objects stand out.
+
+Every image is zodiacal-light subtracted and reprojected onto the same
 north-up, east-left grid centred on your position, so frames line up exactly
 even though SPHEREx observes at many different roll angles.
 
@@ -15,24 +21,17 @@ even though SPHEREx observes at many different roll angles.
 - Internet access to `irsa.ipac.caltech.edu`
 - A browser with WebGL 2 (any current Chrome, Edge, Firefox or Safari)
 
-No Node.js or build step: the frontend is plain HTML, CSS and JavaScript,
-served by the backend. The sky viewer (Aladin Lite 3.8.2) is bundled in
-`frontend/vendor/`.
+There is no build step. The frontend is plain HTML, CSS and ES-module
+JavaScript served by the backend. The sky viewer, Aladin Lite 3.8.2, is
+bundled in `frontend/vendor/`.
 
-## Setup
+## Setup and run
 
 ```bash
 python -m venv .venv
 # Windows:  .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## Run
-
-From the repository root:
-
-```bash
 uvicorn backend.main:app --port 8000
 ```
 
@@ -40,197 +39,236 @@ Then open <http://127.0.0.1:8000>.
 
 **First start:** the server pre-builds the colour sky map in the background:
 1,021 tiles, about 10 minutes, done once. The tiles are cached in
-`backend/cache/hips/`. The app works during this time, but wide sky views
-fill in more slowly until the pre-build finishes. The pre-build pauses
-whenever a search or blink is running.
+`backend/cache/hips/`. The app works during this time. The pre-build always
+gives way to searches and blinks.
 
 ## Using it
 
-The site opens on a start screen that explains what it is, with two buttons:
-- **Take the tour:** an 11-step guided walk through every feature. It moves
-  the camera and opens the blink viewer itself, so each step points at a live
-  control.
+The site opens on a start screen. It has:
+- **Take the tour:** a 15-step guided walk that moves the camera and opens
+  the viewer itself, pointing at each live control.
 - **Start exploring:** go straight to the sky.
 
-The **?** button (top right) brings the start screen back.
+The **?** button brings the start screen back.
 
-**The sky**
+### The sky
 
-- Drag to look around and scroll to zoom. The view drifts slowly until you
-  touch it.
-- **Targets** (top left) lists the challenge test targets, plus a few other
-  movers, variables, showcase nebulae and galaxies, and the SPHEREx deep
-  fields. Click one, or its ring on the sky, and the view flies there and
-  shows a short description.
-- Click anywhere else on the sky to select that spot.
-- **Blink this target** / **Blink this spot** opens the blink viewer. You can
-  also type coordinates at the top and press **Blink**. Both decimal degrees
-  (`133.7607`, `-7.2423`) and sexagesimal (`08h55m02.6s -07d14m32s` or
-  `08:55:02.6 -07:14:32`) work.
-- **Colour / One wavelength** (bottom left) switches the sky between:
-  - a colour image (blue 1.25 µm, green 2.19 µm, red 3.29 µm);
-  - any one of the 100 SPHEREx wavelength channels, chosen with the
-    spectrum slider.
+- Drag to look around and scroll to zoom. The view drifts until you touch it.
+- **Targets** lists the five challenge test targets, plus fast movers,
+  variable stars, nebulae and galaxies, and the SPHEREx deep fields. Clicking
+  one flies there and shows a short description.
+- Click any other spot to select it.
+- **Open blink viewer** on the card opens the viewer. You can also type RA
+  and Dec at the top, in decimal degrees or sexagesimal.
+- **Colour / One wavelength** switches the sky between:
+  - a colour image (1.25, 2.19 and 3.29 µm);
+  - any of the 100 SPHEREx wavelength channels.
 
-**The blink viewer**
+### The blink viewer
 
-| Control | What it does |
+The viewer is a full-screen view of its own, with the image in the middle.
+
+| Area | What it does |
 | --- | --- |
-| Play / pause, ◀ ▶ (space, ← →) | Animate or step through frames |
-| fps slider | Playback speed |
-| Timeline | One tick per image, placed by date and coloured by detector. Click or drag to jump |
-| All · D1–D6 | Show all frames or one detector. Each detector covers its own wavelength range, so blink one at a time for a fair comparison |
-| Display → Smooth / Pixels | Smooth interpolation, or crisp nearest-neighbour pixels |
-| Display → Black / White point, Stretch | Display range (percentiles of each frame) and asinh strength (0 = linear) |
-| Same brightness range for every frame | One shared display range instead of a per-frame one |
-| − / + on the image, mouse wheel, drag | Zoom (up to 16×) and pan; double-click resets |
-| Esc | Close the card or the viewer |
+| **Show** | Four views (details below) |
+| **Detector** | All detectors, or one of D1–D6, each with its wavelength range and images loaded. Choosing one also loads its images first |
+| **Overlays** | Target crosshair; **Gaia DR3** stars moved to each image's date with their proper motion; **AllWISE** sources (2010 positions); **quality flags** (pixels SPHEREx marked as affected); the spectrum aperture |
+| Image | Scroll to zoom, drag to pan, double-click to reset. A click moves the spectrum aperture to any star |
+| Playback and timeline | Play / pause (space), step (← →), speed. One timeline tick per image, placed by date and coloured by detector. Click or drag to jump |
+| **This image** | Date, detector, exact wavelength, data release, observation ID, exposure, quality check (L2 DQA), PSF width, glow contamination (aurora, shuttle glow, helium airglow, radio transmission), cosmic-ray, snowball and streak counts, and the quality flags at the target |
+| **Spectrum** | Brightness against wavelength at the aperture, built from every loaded image. Click a point to show its image. **Download CSV** saves it |
+| **Display** | Smooth or square pixels; black point, white point, stretch; same range for every image |
+| **Data** | Load progress, failed images (with **Retry**), and which data releases were searched |
+| **Field of view** | 0.05°, 0.1°, 0.2° or 0.3°. Larger fields follow faster movers but take longer to download |
+| **Share or embed** | A link to this exact view, and `<iframe>` code to embed the viewer elsewhere |
 
-Frames appear as they load, and a thin bar on the image shows progress. A
-frame that cannot be fetched is skipped and listed, with a **Retry failed**
-button.
+The four views:
+- **Every image:** each exposure in date order.
+- **Visit stacks:** SPHEREx sees each part of the sky in visits about six
+  months apart (a gap of more than 20 days starts a new visit). This adds up
+  the images of each visit, which cuts the noise while keeping the timeline.
+- **Differences:** each visit minus the average of all the others. Amber is
+  brighter in this visit and blue is brighter in the others, so a moving
+  star shows as an amber–blue pair and a variable star as a single colour.
+- **Detector stacks:** everything each detector saw, added together. This is
+  the deepest view in each wavelength range.
 
-### Why the images look soft
-
-That is the data, not the app. SPHEREx is a 20 cm telescope built to take
-spectra of hundreds of millions of objects, not sharp pictures. Its pixels are
-6.2″ wide and its point-spread function is about as wide as a pixel. A 0.1°
-field is therefore only 59 × 59 pixels, which the viewer enlarges about 12
-times. For comparison, WISE pixels are 2.75″ and 2MASS pixels 1″.
-
-The viewer offers two honest renderings:
-- **Smooth** (the default) interpolates between pixels.
-- **Pixels** shows each SPHEREx pixel as a square.
-
-The all-sky map has even coarser 13″ pixels, so the sky view stops zooming
-at 1°.
-
-Two display conventions:
+Display conventions:
 - **White star cores:** the pipeline leaves saturated pixels empty (NaN). The
   viewer draws those white when they sit inside a star.
 - **Dark blue areas:** parts of the field that no detector covered.
 
+### Links and embedding
+
+Every view has its own address:
+
+```
+/?ra=269.446371&dec=4.766881&fov=0.2&name=Barnard%27s%20Star&mode=difference&det=6
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `ra`, `dec` | Field centre: decimal degrees or sexagesimal (`08h55m10.8s`, `-07d14m42s`) |
+| `fov` | `0.05`, `0.1` (default), `0.2` or `0.3` degrees |
+| `name` | Title to show |
+| `mode` | `frames` (default), `epochs`, `difference` or `detectors` |
+| `det` | Detector filter, `1`–`6` |
+| `embed=1` | The viewer alone, for an `<iframe>` on another site |
+
+The browser's Back button returns from the viewer to the sky.
+
+### Why the images look soft
+
+That is the data. SPHEREx is a 20 cm telescope built to take spectra of
+hundreds of millions of objects, not sharp pictures. Its pixels are 6.2″
+wide and its PSF is about as wide as a pixel, so a 0.1° field is 59 × 59
+pixels. For comparison, WISE pixels are 2.75″ and 2MASS pixels 1″. Visit and
+detector stacks lower the noise but cannot add resolution.
+
+## New data releases
+
+The app checks for new data releases by itself. Once a day it asks IRSA
+which SPHEREx collections exist:
+
+```python
+Irsa.list_collections(servicetype="SIA", filter="spherex")
+```
+
+It then searches every wide-survey spectral-image collection, meaning
+`spherex_dr<N>` and `spherex_qr<N>`:
+- data releases first, newest first, then quick releases;
+- `_deep` and `_cube` collections are skipped;
+- an exposure that appears in two releases is taken from the preferred one.
+
+The viewer's **Data** panel shows which collections were searched. So when
+`spherex_dr2` appears, it is used the next day with no code change. Two
+settings in `backend/config.py` control this:
+- `AUTO_DISCOVER_COLLECTIONS = False` turns discovery off and uses
+  `COLLECTIONS` as written;
+- `COLLECTIONS` is also the fallback if IRSA can't be asked.
+
+A new all-sky map would need `HIPS_URL` changed. After that, delete
+`backend/cache/hips/` so the colour tiles are rebuilt.
+
 ## API
 
-### `GET /api/search?ra=<ra>&dec=<dec>`
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/info` | Collections in use, field-of-view choices, flag definitions, header metadata keys, overlay catalogues |
+| `GET /api/search?ra&dec&fov` | Every image covering the position, sorted by time: `id`, `collection`, `obs_id`, `detector`, `mjd`, `date_iso`, detector band, `exposure_s`, `access_url` |
+| `POST /api/stream` | Body `{ra, dec, fov, ids}`. Streams many frames over one connection, each as soon as it is ready (format below) |
+| `GET /api/frame/<id>?ra&dec&fov&format=png\|raw` | One frame: an asinh-stretched PNG, or float32 pixels with metadata in `X-Frame-Meta` |
+| `GET /api/catalog?name=gaia\|allwise&ra&dec&fov` | Catalogue sources `[ra, dec, pmra, pmdec, mag]`, brightest first |
+| `GET /api/sky`, `/hips/rgb/…`, `/hips/<frame>/…` | The all-sky map: wavelength frames, and HiPS tiles in colour or for one frame |
 
-Every spectral image that covers the position, sorted by observation time.
-Each entry has:
-- `id`, `collection`, `obs_id`, `detector`
-- `mjd`, `date_iso`
-- `wavelength_min_um` / `wavelength_max_um` (the detector's band)
-- `exposure_s`, `access_url`
+**Stream format.** Each message is:
+1. two little-endian `uint32` values, the header length and the payload
+   length;
+2. a JSON header with `id`, `ok`, `width`, `height` and `meta` (date,
+   wavelength, header metadata, flags at the target);
+3. the payload:
+   - pixels as float16, `width × height × 2` bytes, row 0 north, NaN for no
+     data;
+   - one byte per pixel of flag categories.
 
-Invalid coordinates return HTTP 400 with a readable `detail` message.
+A failed frame has `ok: false` and an `error`. The stream ends with
+`{"done": true}`.
 
-### `GET /api/frame/<id>?ra=<ra>&dec=<dec>&format=png|raw`
+**Flag categories.** The bits come from the FLAGS layer, using Table 16 of the
+SPHEREx Explanatory Supplement:
 
-One aligned frame, `grid_size` × `grid_size` pixels (59 × 59 at 6.15″/pixel,
-which is 0.1°).
+| Bit | Category |
+| --- | --- |
+| 0 | Cosmic rays and snowballs |
+| 1 | Bad pixels |
+| 2 | Persistence |
+| 3 | Ghosts and crosstalk |
+| 4 | Satellite streaks |
+| 5 | Outliers |
+| 6 | Blooming |
+| 7 | Known source (informational) |
 
-- `format=png` (default): an 8-bit greyscale PNG with an asinh stretch
-  between robust percentiles, computed per frame.
-- `format=raw`: little-endian float32 pixels in MJy/sr. Row 0 is north and
-  NaN means no data. The frontend uses this format so it can re-stretch
-  locally.
+## Speed
 
-Frame metadata is returned in the `X-Frame-Meta` header as JSON. It includes
-the exact wavelength at the target pixel, from the image's WCS-WAVE table.
+- **Measured throughput.** Loading is limited by how fast IRSA serves
+  cutouts. Measured on uncached frames:
 
-### Sky map
+  | Parallel downloads | Frames per second |
+  | --- | --- |
+  | 6 | 2.5 |
+  | 12 | 3.1 |
+  | 16 | 2.9 |
 
-- `GET /api/sky`: the all-sky map's wavelength frames.
-- `GET /hips/rgb/…`: the colour sky as a HiPS (built by this server and
-  cached).
-- `GET /hips/<frame>/…`: one wavelength frame as a HiPS. Each tile request is
-  a redirect to IRSA, so no image data passes through this server.
+- **One streaming connection.** Browsers open at most 6 connections to one
+  server, so the viewer loads through `/api/stream`. The server fetches 12
+  cutouts at once and sends each frame the moment it is ready.
+- **Small downloads.**
+  - Cutouts stop at the EPSF table, about 125 kB each instead of 4 MB.
+  - Frames travel as float16 plus one flag byte per pixel, about 10 kB each
+    for a 0.1° field.
+- **Useful early.** Frames are requested round-robin across visits and
+  detectors, with the chosen detector first. The first few images already
+  span every visit, so blinking is useful within seconds.
+- **Prefetch.** The search starts in the background as soon as a target's
+  card opens.
+- **Priority.**
+  - Searches and blink cutouts come first.
+  - While either is running, sky-map tiles get at most 2 IRSA connections.
+  - Catalogue queries have their own small pool.
+- **Caching.** Everything is cached on disk under `backend/cache/`: search
+  results for 24 hours, frames (with flags) and catalogues indefinitely. A
+  second visit to a field is instant.
 
 ## How it works
 
 ```
 backend/
-  config.py        collections, field of view, sky-map frames, concurrency
-  data_access.py   coordinate parsing, IRSA SIA2 search, cutouts, HiPS tile fetches
-  processing.py    ZODI subtraction, reprojection, stretch, colour tile compositing
+  config.py        collections, field of view, catalogues, concurrency
+  data_access.py   collection discovery, SIA2 search, cutouts, Gator catalogue queries, HiPS tiles
+  processing.py    ZODI subtraction, reprojection, quality flags, stretch, encodings
   sky.py           colour sky tiles: build on demand, cache, background pre-build
   main.py          FastAPI routes; also serves frontend/
   cache.py         on-disk cache helpers
   scripts/build_presets.py   one-off script that builds frontend/presets.json
   tests/
 frontend/
-  index.html, style.css, app.js, presets.json
-  vendor/aladin-lite-3.8.2/  sky viewer (LGPL-3.0, CDS Strasbourg)
+  index.html, style.css, presets.json
+  js/main.js       start-up, URL parameters, history
+  js/sky.js        sky map, markers, prompt card, camera
+  js/viewer.js     blink viewer: loading, views, overlays, spectrum, sharing
+  js/tour.js       start screen and guided tour
+  js/util.js       helpers (coordinates, float16 decoding, stream reader)
+  vendor/aladin-lite-3.8.2/
 ```
 
-**Blink**
-
-1. **Search.** `astroquery`'s `Irsa.query_sia(pos=(coord, 1″),
-   collection=config.COLLECTIONS)`. If the same exposure appears in two
-   releases, the copy from the collection listed first in `COLLECTIONS` is
-   kept.
-2. **Cutouts.** IRSA's server-side cutout service:
-   `<access_url>?center=<ra>,<dec>deg&size=0.15deg`. The cutout is 1.5 × the
-   0.1° field, so the north-up grid stays fully covered at any roll angle.
-   Full 2040 × 2040 images are never downloaded.
-3. **Download trimming.** About 97% of each 4 MB cutout response is the EPSF
-   table, which the cutout service does not crop. Downloads are streamed and
-   stopped when that table starts, so each frame transfers about 125 kB
-   instead of 4 MB. The WCS-WAVE wavelength table comes after the EPSF, so it
-   is downloaded in full only once per detector calibration and then cached.
-4. **Processing.** IMAGE − ZODI, then `reproject_interp` (bilinear) onto a TAN
-   grid with `CDELT1 < 0` (east left), `CDELT2 > 0` (north up) and the
-   reference pixel on the requested position.
-5. **Concurrency.** Cutouts are fetched with an `asyncio.Semaphore(6)`. IRSA
-   answers about a third of cutout requests with `503 Server busy`, however
-   slowly they are sent, and a quick retry usually works. Each request
-   therefore gets up to 7 attempts with short exponential backoff (0.4 s
-   doubling, capped by `Retry-After`). A frame that still fails returns HTTP
-   502 and is skipped by the client.
-6. **Caching.** SIA results are cached for 24 hours under
-   `backend/cache/sia/`. Processed frames are cached indefinitely under
-   `backend/cache/frames/<collection>/`, keyed by (collection, image id, RA,
-   Dec, FoV). Delete `backend/cache/` to clear the cache.
-
-**Sky**
-
-- **Source map.** The sky is IRSA's SPHEREx DR1 all-sky HiPS cube, with 102
-  wavelength frames and 13″ pixels. Aladin Lite can show only one frame of a
-  cube at a time, and it merges layers that share a survey ID. So the backend
-  re-describes each frame as an ordinary 2-D HiPS (`/hips/<frame>/`),
-  redirecting tile requests to IRSA.
-- **Colour tiles.** Each tile is built from three frames (1.25, 2.19 and
-  3.29 µm) and saved as JPEG. Saturated star cores, which are blank in the
-  source tiles, are filled from their brightest neighbour.
-- **Priority.** Searches and blink cutouts come first. While either is
-  running, sky-tile building uses at most 2 IRSA connections. Without this
-  rule, IRSA throttles everything, and in testing a search slowed from 2 s to
-  30 s.
-
-### New data releases
-
-The SPHEREx collection names change between releases (`spherex_qr`,
-`spherex_qr2`, then the current `spherex_dr1` and `spherex_qr3`). To list
-what IRSA offers now:
-
-```python
-from astroquery.ipac.irsa import Irsa
-print(Irsa.list_collections(servicetype="SIA", filter="spherex"))
-```
-
-Then edit `COLLECTIONS` in `backend/config.py`. Use the wide-survey
-spectral-image collections, not `_deep` or `_cube`. A new all-sky map would
-need `HIPS_URL` changed too. Then delete `backend/cache/hips/` so the colour
-tiles are rebuilt.
+1. **Search.** `Irsa.query_sia(pos=(coord, 1″), collection=[…discovered…])`.
+2. **Cutouts.** IRSA's server-side cutout service at 1.5 × the field of view,
+   so the north-up grid stays covered at any roll angle. Full 2040 × 2040
+   images are never downloaded.
+3. **Processing.**
+   - IMAGE − ZODI, then bilinear `reproject_interp` onto a TAN grid with east
+     on the left, north up, and the target at the centre.
+   - FLAGS goes onto the same grid by nearest neighbour.
+   - The exact wavelength at the target comes from the WCS-WAVE lookup table.
+4. **Retries.** IRSA answers about a third of cutout requests with
+   `503 Server busy`. Each request gets up to 7 attempts with short
+   exponential backoff. A frame that still fails is reported and skipped.
+5. **In the browser.** Visit, difference and detector stacks are averages of
+   the loaded frames, ignoring NaN pixels.
+6. **Spectrum.**
+   - Aperture: a sum within 2 pixels of the aperture position.
+   - Background: the median of a 4–7 pixel ring, subtracted.
+   - Conversion to flux density: × the pixel solid angle.
+   - No aperture correction.
+7. **Overlays.** Gaia DR3 and AllWISE come from IRSA's Gator cone search.
+   Gaia positions are moved from epoch 2016.0 to each image's date.
 
 ## Targets
 
 `frontend/presets.json` was generated once by
 `python -m backend.scripts.build_presets`. The app never queries SIMBAD at
 runtime. Positions are propagated to epoch 2025.5 with astropy's
-`apply_space_motion`, using proper motion, parallax and radial velocity where
-SIMBAD has them.
-
-The five challenge test targets are marked "test" in the list:
+`apply_space_motion`.
 
 | Target | Source | Shift applied |
 | --- | --- | --- |
@@ -244,17 +282,12 @@ The other targets:
 - Proxima Centauri and Mira
 - Orion Nebula, Galactic Centre, Andromeda Galaxy core, Tarantula Nebula,
   Crab Nebula, Eta Carinae and Rho Ophiuchi
-- the north and south ecliptic poles (SPHEREx's deep fields), computed from
-  the ecliptic frame
+- the two ecliptic-pole deep fields
 
-Two notes on sources:
-- **WISE 0855.** The challenge position equals the object's WISE designation,
-  J085510.83−071442.5, which is its WISE All-Sky position from the May 2010
-  visit. The AllWISE catalogue position (mean epoch 2010.59) lies 1.3″ west of
-  it, which matches the object's 8.1″/yr westward motion.
-- **SIMBAD server.** The script uses the Harvard SIMBAD mirror because the CDS
-  server was unreachable when the presets were built. Set `SIMBAD_SERVER =
-  None` in the script to use astroquery's default.
+**WISE 0855.** The challenge position equals the object's WISE designation,
+J085510.83−071442.5, which is its WISE All-Sky position from the May 2010
+visit. The AllWISE position (mean epoch 2010.59) lies 1.3″ west of it, which
+matches the object's 8.1″/yr westward motion.
 
 ## Tests
 
@@ -263,24 +296,30 @@ pytest                    # all tests
 pytest -m "not network"   # skip the live IRSA query
 ```
 
-- `test_coordinates.py`: decimal and sexagesimal parsing, and error messages.
-- `test_processing.py`: reprojection of synthetic images at several roll
-  angles onto the fixed grid (a star always lands on the same pixel), grid
-  orientation, and ZODI subtraction.
-- `test_sky.py`: tile naming per cube frame, the path allow-list for
-  redirects, the colour compositor, and saturated-core filling.
-- `test_sia_live.py` (marked `network`): a live SIA2 query for WISE 0855.
+| File | Covers |
+| --- | --- |
+| `test_coordinates.py` | Coordinate parsing and error messages |
+| `test_processing.py` | Reprojection at several roll angles onto the fixed grid, orientation, ZODI subtraction |
+| `test_sky.py` | All-sky tile naming, redirect allow-list, colour compositor |
+| `test_features.py` | Release discovery and ordering, the flag table and category mask, float16 encoding, the binary stream (including a failed frame), field-of-view validation |
+| `test_sia_live.py` (marked `network`) | A live SIA2 query for WISE 0855 |
 
-## Credits
+## Licence and credits
 
+- Code: MIT licence (see `LICENSE`).
 - SPHEREx data: NASA/JPL-Caltech, served by NASA/IPAC IRSA.
-- Sky viewer: [Aladin Lite](https://aladin.cds.unistra.fr/AladinLite/) by CDS,
-  Strasbourg (LGPL-3.0). The bundled copy has its usage logging switched off.
+- Gaia DR3 (ESA) and AllWISE (NASA/JPL-Caltech) catalogues, via IRSA.
+- Sky viewer: [Aladin Lite](https://aladin.cds.unistra.fr/AladinLite/) by
+  CDS, Strasbourg (LGPL-3.0), bundled unmodified, with usage logging switched
+  off by option.
+- Flag definitions: SPHEREx Explanatory Supplement v2.0, Table 16.
 - Target positions: SIMBAD (CDS).
+- Typeface: Public Sans (USWDS, SIL Open Font License).
 
 ## Data sources
 
 - [IRSA SPHEREx tutorials](https://caltech-ipac.github.io/irsa-tutorials/spherex/)
 - [SPHEREx data access](https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/)
 - [SPHEREx data products](https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/)
-- [IRSA HiPS list](https://irsa.ipac.caltech.edu/data/hips/list) (SPHEREx DR1 all-sky cube)
+- [SPHEREx Explanatory Supplement](https://irsa.ipac.caltech.edu/data/SPHEREx/docs/SPHEREx_Expsupp_QR.pdf)
+- [IRSA HiPS list](https://irsa.ipac.caltech.edu/data/hips/list)

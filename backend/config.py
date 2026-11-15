@@ -1,7 +1,8 @@
 """Central configuration for the SPHEREx blink tool.
 
-A new SPHEREx data release should need nothing more than an edit to
-``COLLECTIONS`` below.
+New SPHEREx data releases are picked up automatically: the list of SIA2
+collections is discovered from IRSA once a day (``AUTO_DISCOVER_COLLECTIONS``).
+``COLLECTIONS`` is the fallback, and the full list when discovery is off.
 """
 
 from __future__ import annotations
@@ -19,6 +20,13 @@ from pathlib import Path
 #: up the current wide survey (the older spherex_qr / spherex_qr2 collections
 #: are no longer searchable).
 COLLECTIONS: list[str] = ["spherex_dr1", "spherex_qr3"]
+
+#: Ask IRSA which SPHEREx collections exist (once a day) and use every
+#: wide-survey spectral-image collection named ``spherex_dr<N>`` or
+#: ``spherex_qr<N>``, newest data release first.  ``_deep`` and ``_cube``
+#: collections are left out automatically.
+AUTO_DISCOVER_COLLECTIONS: bool = True
+COLLECTIONS_CACHE_TTL_SECONDS: int = 24 * 3600
 
 #: Radius of the SIA2 position search.  Kept tiny: we want images that contain
 #: the target itself, not images that merely pass nearby.
@@ -80,8 +88,12 @@ HIPS_SHARE_WHILE_BLINKING: int = 2
 # Frame geometry
 # --------------------------------------------------------------------------
 
-#: Field of view of every frame, in degrees.  Fixed by design.
+#: Default field of view of a blink, in degrees.
 FOV_DEG: float = 0.1
+
+#: Fields of view the user may choose.  Larger fields help follow fast movers
+#: but each frame is bigger to download (cutout area grows with the square).
+FOV_CHOICES: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3)
 
 #: Pixel scale of the common output grid (SPHEREx native scale), arcsec/pixel.
 PIXEL_SCALE_ARCSEC: float = 6.15
@@ -92,9 +104,9 @@ PIXEL_SCALE_ARCSEC: float = 6.15
 CUTOUT_PADDING: float = 1.5
 
 
-def grid_size() -> int:
+def grid_size(fov: float = FOV_DEG) -> int:
     """Side length of the output grid in pixels (odd, so the target is centred on a pixel)."""
-    n = int(round(FOV_DEG * 3600.0 / PIXEL_SCALE_ARCSEC))
+    n = int(round(fov * 3600.0 / PIXEL_SCALE_ARCSEC))
     return n if n % 2 == 1 else n + 1
 
 
@@ -102,8 +114,38 @@ def grid_size() -> int:
 # Network behaviour
 # --------------------------------------------------------------------------
 
-#: Maximum number of simultaneous cutout downloads from IRSA.
-MAX_CONCURRENT_DOWNLOADS: int = 6
+#: Maximum number of simultaneous cutout downloads from IRSA.  Measured on
+#: uncached frames: 6 -> 2.5 frames/s, 12 -> 3.1 frames/s, 16 -> 2.9 frames/s.
+#: The frontend loads frames through one streaming request (/api/stream), so
+#: the browser's 6-connections-per-host limit does not cap this.
+MAX_CONCURRENT_DOWNLOADS: int = 12
+
+# --------------------------------------------------------------------------
+# Catalogue overlays (IRSA Gator cone search)
+# --------------------------------------------------------------------------
+
+GATOR_URL: str = "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"
+
+#: Overlay catalogues: IRSA table name, columns (ra, dec, pmra, pmdec, mag),
+#: the epoch of the positions, and the most sources to send (brightest first).
+CATALOGS: dict[str, dict] = {
+    "gaia": {
+        "label": "Gaia DR3",
+        "table": "gaia_dr3_source",
+        "columns": {"ra": "ra", "dec": "dec", "pmra": "pmra", "pmdec": "pmdec", "mag": "phot_g_mean_mag"},
+        "mag_label": "G",
+        "epoch": 2016.0,
+        "limit": 4000,
+    },
+    "allwise": {
+        "label": "AllWISE",
+        "table": "allwise_p3as_psd",
+        "columns": {"ra": "ra", "dec": "dec", "pmra": None, "pmdec": None, "mag": "w1mpro"},
+        "mag_label": "W1",
+        "epoch": 2010.5,
+        "limit": 3000,
+    },
+}
 
 #: Per-attempt timeouts, seconds.
 CONNECT_TIMEOUT: float = 15.0

@@ -37,16 +37,26 @@ def position_key(ra_deg: float, dec_deg: float) -> str:
     return f"{ra_deg:.6f}_{dec_deg:+.6f}"
 
 
-def sia_path(ra_deg: float, dec_deg: float) -> Path:
-    """Cache file for the SIA search at a position."""
-    collections = safe_name("+".join(config.COLLECTIONS))
-    return config.CACHE_DIR / "sia" / f"{position_key(ra_deg, dec_deg)}__{collections}.json"
+def sia_path(ra_deg: float, dec_deg: float, collections: list[str]) -> Path:
+    """Cache file for the SIA search at a position over the given collections."""
+    names = safe_name("+".join(collections))
+    return config.CACHE_DIR / "sia" / f"{position_key(ra_deg, dec_deg)}__{names}.json"
 
 
-def frame_path(collection: str, image_id: str, ra_deg: float, dec_deg: float) -> Path:
+def frame_path(collection: str, image_id: str, ra_deg: float, dec_deg: float, fov: float) -> Path:
     """Cache file for one processed frame, keyed by (collection, id, ra, dec, fov)."""
-    name = f"{safe_name(image_id)}__{position_key(ra_deg, dec_deg)}_{config.FOV_DEG:g}.npz"
+    name = f"{safe_name(image_id)}__{position_key(ra_deg, dec_deg)}_{fov:g}.npz"
     return config.CACHE_DIR / "frames" / safe_name(collection) / name
+
+
+def collections_path() -> Path:
+    """Cache file for the SPHEREx collections discovered at IRSA."""
+    return config.CACHE_DIR / "collections.json"
+
+
+def catalog_path(name: str, ra_deg: float, dec_deg: float, radius_deg: float) -> Path:
+    """Cache file for a catalogue cone search."""
+    return config.CACHE_DIR / "catalogs" / f"{safe_name(name)}__{position_key(ra_deg, dec_deg)}_{radius_deg:.4f}.json"
 
 
 def wave_path(key: str) -> Path:

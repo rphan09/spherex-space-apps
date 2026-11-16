@@ -229,7 +229,7 @@ SPHEREx Explanatory Supplement:
     for a year.
   - Our own files are revalidated on each load, so updates show at once.
   - All JavaScript modules are preloaded in parallel.
-  - The typeface is one variable-font file.
+  - Three IBM Plex faces (Sans, Condensed, Mono) load from one stylesheet.
 
 ## How it works
 
@@ -327,7 +327,7 @@ pytest -m "not network"   # skip the live IRSA query
   off by option.
 - Flag definitions: SPHEREx Explanatory Supplement v2.0, Table 16.
 - Target positions: SIMBAD (CDS).
-- Typeface: Public Sans (USWDS, SIL Open Font License).
+- Typefaces: IBM Plex Sans, Sans Condensed and Mono (IBM, SIL Open Font License).
 
 ## Data sources
 

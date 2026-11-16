@@ -788,7 +788,7 @@ function drawSpectrum() {
   const ready = V.frames.filter((f) => f.status === "ready" && f.wavelength != null);
   if (!ready.length || !V.aperture) {
     sctx.fillStyle = "#ecebe7";
-    sctx.font = `${13 * dpr}px "Public Sans", sans-serif`;
+    sctx.font = `${13 * dpr}px "IBM Plex Mono", monospace`;
     sctx.fillText(V.frames.length ? "The spectrum appears as images load." : "", 12 * dpr, 24 * dpr);
     return;
   }
@@ -801,7 +801,7 @@ function drawSpectrum() {
   const X = (um) => L + ((um - 0.7) / (5.2 - 0.7)) * (w - L - R);
   const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
 
-  sctx.font = `${11.5 * dpr}px "Public Sans", sans-serif`;
+  sctx.font = `${11.5 * dpr}px "IBM Plex Mono", monospace`;
   sctx.fillStyle = "#ecebe7";
   sctx.strokeStyle = "rgba(255,255,255,0.08)";
   sctx.lineWidth = dpr;

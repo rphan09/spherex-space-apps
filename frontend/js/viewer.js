@@ -9,6 +9,7 @@ import {
   $, ACCENT, DETECTOR_COLORS, clamp, decodeFloat16, formatCoords, median, mjdToYear, percentile,
   readError, readMessages, sortedFinite, tanProject, toast,
 } from "./util.js";
+import { hintButton } from "./help.js";
 
 const DEFAULTS = { lo: 2, hi: 99.7, asinh: 8 };
 const MAX_ZOOM = 16;
@@ -106,6 +107,7 @@ export function initViewer(info) {
     button.addEventListener("click", () => setFov(fov));
     return button;
   }));
+  buildDetectors();
   el.lo.value = DEFAULTS.lo; el.hi.value = DEFAULTS.hi; el.asinh.value = DEFAULTS.asinh;
   updateReadouts();
   new ResizeObserver(resizeCanvases).observe(el.stage);
@@ -122,6 +124,7 @@ export function openViewer(q) {
   V.detector = clamp(Number(q.detector) || 0, 0, 6);
   V.open = true;
   el.viewer.hidden = false;
+  document.body.classList.add("viewer-open");
   el.viewer.style.animation = "none"; void el.viewer.offsetWidth; el.viewer.style.animation = "";
   el.title.textContent = V.query.name || "Selected position";
   el.coords.textContent = "";
@@ -136,6 +139,7 @@ export function closeViewer() {
   abortAll();
   V.generation += 1;
   el.viewer.hidden = true;
+  document.body.classList.remove("viewer-open");
   V.onClose();
 }
 
@@ -479,12 +483,17 @@ function displayRange(image) {
   return [V.lockedRange.lo, V.lockedRange.hi];
 }
 
+let paintBuffer = null;
+function imageBuffer(context, existing) {
+  return existing && existing.width === V.grid ? existing : context.createImageData(V.grid, V.grid);
+}
+
 function paint(image) {
   const [low, high] = displayRange(image);
   const strength = Number(el.asinh.value);
   const norm = strength > 0 ? Math.asinh(strength) : 1;
   const curve = (t) => (strength > 0 ? Math.asinh(strength * t) / norm : t);
-  const out = offCtx.createImageData(V.grid, V.grid);
+  const out = paintBuffer = imageBuffer(offCtx, paintBuffer);
   const px = out.data, data = image.data, enclosed = image.enclosed;
   const span = high > low ? high - low : 1;
   for (let i = 0, o = 0; i < data.length; i += 1, o += 4) {
@@ -510,14 +519,17 @@ function paint(image) {
   offCtx.putImageData(out, 0, 0);
 }
 
+let flagBuffer = null;
 function paintFlags(mask) {
-  const out = flagCtx.createImageData(V.grid, V.grid);
+  const out = flagBuffer = imageBuffer(flagCtx, flagBuffer);
   const px = out.data;
   let count = 0;
   for (let i = 0, o = 0; i < mask.length; i += 1, o += 4) {
     if (mask[i] & PROBLEM_BITS) {
       [px[o], px[o + 1], px[o + 2], px[o + 3]] = FLAG_RGBA;
       count += 1;
+    } else {
+      px[o + 3] = 0;   // the buffer is reused: clear pixels flagged in the previous image
     }
   }
   flagCtx.putImageData(out, 0, 0);
@@ -865,12 +877,33 @@ function downloadSpectrum() {
 
 /* ============================================================ side panels */
 
-function fact(label, value) {
-  const dt = document.createElement("dt");
-  dt.textContent = label;
-  const dd = document.createElement("dd");
-  dd.textContent = value;
-  return [dt, dd];
+/** One label/value row; `help` adds a help icon after the label. */
+function fact(label, value, help) {
+  return [label, value, help || ""];
+}
+
+/**
+ * Show rows in a <dl>, rebuilding it only when they change.  Frames arrive
+ * several times a second; rebuilding every time would also close an open
+ * help popover and drop keyboard focus.
+ */
+function setFacts(list, rows) {
+  const signature = JSON.stringify(rows);
+  if (list.dataset.signature === signature) return;
+  list.dataset.signature = signature;
+  const nodes = [];
+  for (let i = 0; i < rows.length; i += 3) {
+    const [label, value, help] = rows.slice(i, i + 3);
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    if (help) dt.append(hintButton(help));
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    const row = document.createElement("div");   // one group per row, so each row sizes itself
+    row.append(dt, dd);
+    nodes.push(row);
+  }
+  list.replaceChildren(...nodes);
 }
 
 function updateInfo() {
@@ -879,8 +912,9 @@ function updateInfo() {
   const chips = [];
   if (!item) {
     el.infoTitle.textContent = "This image";
-    el.facts.replaceChildren();
+    setFacts(el.facts, []);
     el.flagChips.replaceChildren();
+    el.flagChips.dataset.signature = "";
     return;
   }
   if (item.kind === "frame") {
@@ -890,21 +924,21 @@ function updateInfo() {
     nodes.push(...fact("Time (UTC)", f.date_iso.slice(11, 19)));
     nodes.push(...fact("Detector", `D${f.detector}`));
     if (f.wavelength != null) nodes.push(...fact("Wavelength", `${f.wavelength.toFixed(3)} µm`));
-    nodes.push(...fact("Release", f.collection));
-    nodes.push(...fact("Observation", f.obs_id));
-    if (hdr.XPOSURE != null) nodes.push(...fact("Exposure", `${hdr.XPOSURE.toFixed(1)} s`));
-    if (hdr.L2DQAFLG) nodes.push(...fact("Quality", hdr.L2DQAFLG));
-    if (hdr.PSF_FWHM != null) nodes.push(...fact("PSF", `${hdr.PSF_FWHM.toFixed(2)}″`));
+    nodes.push(...fact("Release", f.collection, "f-release"));
+    nodes.push(...fact("Observation", f.obs_id, "f-observation"));
+    if (hdr.XPOSURE != null) nodes.push(...fact("Exposure", `${hdr.XPOSURE.toFixed(1)} s`, "f-exposure"));
+    if (hdr.L2DQAFLG) nodes.push(...fact("Quality", hdr.L2DQAFLG, "f-quality"));
+    if (hdr.PSF_FWHM != null) nodes.push(...fact("PSF", `${hdr.PSF_FWHM.toFixed(2)}″`, "f-psf"));
     const glow = [["AURORA_CONT", "Aurora"], ["SHUTTLE_GLOW_CONT", "Shuttle glow"], ["HE_AIRGLOW_CONT", "Helium"],
       ["OBS_IN_SBAND", "S-band"]].filter(([k]) => hdr[k] === true).map(([, label]) => label);
-    nodes.push(...fact("Glow", glow.length ? glow.join(", ") : "None"));
-    if (hdr["L2 N_TRANSIENT"] != null) nodes.push(...fact("Cosmic-ray pixels", hdr["L2 N_TRANSIENT"].toLocaleString()));
-    if (hdr.NSNOWSRC != null) nodes.push(...fact("Snowballs", String(hdr.NSNOWSRC)));
-    if (hdr["L2 SATSTRKS"] != null) nodes.push(...fact("Satellite streaks", String(hdr["L2 SATSTRKS"])));
+    nodes.push(...fact("Glow", glow.length ? glow.join(", ") : "None", "f-glow"));
+    if (hdr["L2 N_TRANSIENT"] != null) nodes.push(...fact("Cosmic-ray pixels", hdr["L2 N_TRANSIENT"].toLocaleString(), "f-cosmic"));
+    if (hdr.NSNOWSRC != null) nodes.push(...fact("Snowballs", String(hdr.NSNOWSRC), "f-snowballs"));
+    if (hdr["L2 SATSTRKS"] != null) nodes.push(...fact("Satellite streaks", String(hdr["L2 SATSTRKS"]), "f-streaks"));
     const bits = V.info?.flag_bits || {};
     const byName = Object.fromEntries(Object.values(bits).map((b) => [b.name, b]));
     const flags = m.target_flags || [];
-    nodes.push(...fact("Flags at target", flags.length ? String(flags.length) : "None"));
+    nodes.push(...fact("Flags at target", flags.length ? String(flags.length) : "None", "f-flags"));
     for (const name of flags) {
       const chip = document.createElement("span");
       chip.className = "flag-chip";
@@ -916,47 +950,62 @@ function updateInfo() {
     const members = item.members;
     el.infoTitle.textContent = item.kind === "diff" ? "This difference" : "This stack";
     if (item.epoch) {
-      nodes.push(...fact("Visit", `${item.epoch.index + 1} of ${V.epochs.length}`));
+      nodes.push(...fact("Visit", `${item.epoch.index + 1} of ${V.epochs.length}`, "f-visit"));
       nodes.push(...fact("Dates", visitRange(item.epoch)));
     }
     nodes.push(...fact("Images", String(members.length)));
-    if (item.kind === "diff") nodes.push(...fact("Subtracted", String(item.others.length)));
+    if (item.kind === "diff") nodes.push(...fact("Subtracted", String(item.others.length), "f-subtracted"));
     const dets = [...new Set(members.map((f) => f.detector))].sort();
     nodes.push(...fact("Detectors", dets.map((d) => `D${d}`).join(", ")));
     const waves = members.map((f) => f.wavelength).filter((x) => x != null);
     if (waves.length) nodes.push(...fact("Wavelengths", `${Math.min(...waves).toFixed(2)}–${Math.max(...waves).toFixed(2)} µm`));
     const flagged = members.filter((f) => (f.meta?.target_flags || []).some((n) => !["SOURCE", "FULLSAMPLE"].includes(n))).length;
-    nodes.push(...fact("Flagged at target", `${flagged} of ${members.length}`));
+    nodes.push(...fact("Flagged at target", `${flagged} of ${members.length}`, "f-flagged"));
   }
-  el.facts.replaceChildren(...nodes);
-  el.flagChips.replaceChildren(...chips);
+  setFacts(el.facts, nodes);
+  const chipSignature = chips.map((c) => c.textContent).join("|");
+  if (el.flagChips.dataset.signature !== chipSignature) {
+    el.flagChips.dataset.signature = chipSignature;
+    el.flagChips.replaceChildren(...chips);
+  }
 }
 
-function updateDetectors() {
-  const buttons = [];
-  const make = (d) => {
-    const frames = d ? V.frames.filter((f) => f.detector === d) : V.frames;
+const detButtons = [];
+
+function buildDetectors() {
+  for (let d = 0; d <= 6; d += 1) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = d ? "det" : "det all";
     if (d) button.style.setProperty("--c", DETECTOR_COLORS[d - 1]);
-    const active = V.mode === "detectors" ? (d !== 0 && currentItem()?.detector === d) : V.detector === d;
-    button.setAttribute("aria-pressed", String(active));
-    button.disabled = d !== 0 && V.frames.length > 0 && frames.length === 0;
     const strong = document.createElement("strong");
     strong.textContent = d ? `D${d}` : "All";
     const small = document.createElement("small");
-    small.textContent = d ? bandOf(d) || "–" : "0.75–5.0 µm";
     const count = document.createElement("span");
     count.className = "count num";
-    const ready = frames.filter((f) => f.status === "ready").length;
-    count.textContent = frames.length ? `${ready}/${frames.length}` : "";
     button.append(strong, count, small);
     button.addEventListener("click", () => setDetector(d));
-    buttons.push(button);
-  };
-  for (let d = 0; d <= 6; d += 1) make(d);
-  el.detectors.replaceChildren(...buttons);
+    detButtons.push({ button, small, count });
+  }
+  el.detectors.replaceChildren(...detButtons.map((b) => b.button));
+}
+
+function updateDetectors() {
+  const total = [0, 0, 0, 0, 0, 0, 0], ready = [0, 0, 0, 0, 0, 0, 0];
+  for (const f of V.frames) {
+    total[0] += 1; total[f.detector] += 1;
+    if (f.status === "ready") { ready[0] += 1; ready[f.detector] += 1; }
+  }
+  const stackDetector = V.mode === "detectors" ? currentItem()?.detector : null;
+  detButtons.forEach(({ button, small, count }, d) => {
+    const active = V.mode === "detectors" ? (d !== 0 && stackDetector === d) : V.detector === d;
+    button.setAttribute("aria-pressed", String(active));
+    button.disabled = d !== 0 && V.frames.length > 0 && total[d] === 0;
+    const band = d ? bandOf(d) || "–" : "0.75–5.0 µm";
+    if (small.textContent !== band) small.textContent = band;
+    const text = total[d] ? `${ready[d]}/${total[d]}` : "";
+    if (count.textContent !== text) count.textContent = text;
+  });
 }
 
 function updateModes() {
@@ -1005,7 +1054,7 @@ function updateProgress() {
     nodes.push(...fact("Field", `${V.query.fov}°, ${V.grid} px`));
     nodes.push(...fact("Releases", V.collections.join(", ")));
   }
-  el.dataFacts.replaceChildren(...nodes);
+  setFacts(el.dataFacts, nodes);
 }
 
 function updateMessage() {

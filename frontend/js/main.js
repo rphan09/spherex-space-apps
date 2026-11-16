@@ -13,6 +13,9 @@ import { $, toast } from "./util.js";
 import { closeCard, initSky, loadTargets, markActive, showFootprint, sky } from "./sky.js";
 import { V, closeViewer, initViewer, openViewer, shareUrls, viewParams } from "./viewer.js";
 import { closeIntro, initTour, tourState } from "./tour.js";
+import { initHelp } from "./help.js";
+
+initHelp();   // before anything awaits, so the help icons work at once
 
 const embed = new URLSearchParams(location.search).get("embed") === "1";
 let historyPushed = false;   // did opening the viewer add a history entry?

@@ -19,6 +19,7 @@ from typing import Literal
 import numpy as np
 from astropy.coordinates import SkyCoord
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -42,6 +43,23 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="SPHEREx Blink", version="1.0.0", lifespan=lifespan)
+
+
+class TextGZipMiddleware(GZipMiddleware):
+    """Compress text responses (the 2.4 MB sky-viewer script shrinks about 4x),
+    but never the binary frame endpoints: float16 pixels barely compress, and
+    gzip buffering would hold back frames that should reach the browser at once."""
+
+    BINARY_PREFIXES = ("/api/stream", "/api/frame/")
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and scope["path"].startswith(self.BINARY_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
+app.add_middleware(TextGZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 def _coordinates(ra: str, dec: str) -> SkyCoord:
@@ -366,12 +384,17 @@ async def hips_tile(frame: int, path: str) -> RedirectResponse:
 
 
 class FrontendFiles(StaticFiles):
-    """Static frontend files.  Browsers revalidate them on each load (a cheap
-    304 when unchanged), so an updated frontend shows up at once."""
+    """Static frontend files.  Our own files are revalidated on each load (a
+    cheap 304 when unchanged), so an updated frontend shows up at once.
+    Vendored libraries sit in versioned folders and never change, so browsers
+    may keep them for a year without asking again."""
 
     async def get_response(self, path: str, scope) -> Response:
         response = await super().get_response(path, scope)
-        response.headers["Cache-Control"] = "no-cache"
+        if path.replace("\\", "/").startswith("vendor/") and response.status_code in (200, 304):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
 

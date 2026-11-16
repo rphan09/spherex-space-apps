@@ -8,8 +8,16 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23f5b54a' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23f5b54a'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@200..800&display=swap">
   <link rel="stylesheet" href="style.css">
+  <!-- Fetch the whole module graph in parallel instead of one import at a time. -->
+  <link rel="modulepreload" href="js/util.js">
+  <link rel="modulepreload" href="js/help.js">
+  <link rel="modulepreload" href="js/sky.js">
+  <link rel="modulepreload" href="js/viewer.js">
+  <link rel="modulepreload" href="js/tour.js">
+  <link rel="modulepreload" href="vendor/aladin-lite-3.8.2/aladin.js">
+  <link rel="preload" href="presets.json" as="fetch" crossorigin>
 </head>
 <body>
   <!-- ============================== SKY ============================== -->
@@ -30,7 +38,7 @@
   </div>
 
   <header class="topbar">
-    <div class="brand"><span class="brand-name">SPHEREx</span><span class="brand-tool">Blink</span></div>
+    <div class="brand"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="2.5"/></svg><span class="brand-name">SPHEREx</span><span class="brand-tool">Blink</span></div>
     <form id="goto" class="goto" autocomplete="off">
       <label class="field"><span>RA</span>
         <input id="ra" name="ra" type="text" spellcheck="false" placeholder="08h55m02.6s or 133.761" required>
@@ -39,14 +47,18 @@
         <input id="dec" name="dec" type="text" spellcheck="false" placeholder="−07d14m32s or −7.242" required>
       </label>
       <button type="submit" class="btn primary">Blink</button>
+      <button data-help="coords"></button>
     </form>
     <button id="help" type="button" class="help-btn" title="About and tour" aria-label="About this site and guided tour">?</button>
   </header>
 
   <nav id="targets" class="targets" aria-label="Targets">
-    <button id="targets-toggle" type="button" class="targets-toggle" aria-expanded="true" aria-controls="targets-list">
-      Targets <span class="chev" aria-hidden="true"></span>
-    </button>
+    <div class="targets-head">
+      <button id="targets-toggle" type="button" class="targets-toggle" aria-expanded="true" aria-controls="targets-list">
+        Targets <span class="chev" aria-hidden="true"></span>
+      </button>
+      <button data-help="targets"></button>
+    </div>
     <div id="targets-list" class="targets-list"></div>
   </nav>
 
@@ -55,6 +67,7 @@
       <button type="button" role="radio" data-layer="rgb" aria-checked="true">Colour</button>
       <button type="button" role="radio" data-layer="mono" aria-checked="false">One wavelength</button>
     </div>
+    <button data-help="layer" class="hint-float"></button>
     <div id="spectrum-slider" class="spectrum-slider" hidden>
       <input id="wave" type="range" min="0" max="99" step="1" value="40" aria-label="Wavelength">
       <output id="wave-value" class="num" for="wave"></output>
@@ -74,7 +87,10 @@
       <div class="v-head-actions">
         <span class="field-label">Field of view</span>
         <div id="fov-seg" class="seg" role="radiogroup" aria-label="Field of view"></div>
+        <button data-help="fov"></button>
+        <span class="head-sep" aria-hidden="true"></span>
         <button id="v-share" type="button" class="btn ghost">Share or embed</button>
+        <button data-help="share"></button>
         <a id="v-full" class="btn ghost" target="_blank" rel="noopener" hidden>Open in SPHEREx Blink</a>
         <button id="v-help" type="button" class="help-btn" aria-label="About this site and guided tour">?</button>
       </div>
@@ -84,7 +100,7 @@
       <!-- Left: what to show -->
       <aside class="v-panel v-left" aria-label="What to show">
         <section class="panel-sec" id="sec-mode">
-          <h3>Show</h3>
+          <div class="sec-head"><h3>Show</h3><button data-help="mode"></button></div>
           <div id="mode-list" class="mode-list" role="radiogroup" aria-label="View">
             <button type="button" class="mode" role="radio" data-mode="frames" aria-checked="true">Every image</button>
             <button type="button" class="mode" role="radio" data-mode="epochs" aria-checked="false">Visit stacks</button>
@@ -94,12 +110,12 @@
         </section>
 
         <section class="panel-sec" id="sec-detectors">
-          <h3>Detector</h3>
+          <div class="sec-head"><h3>Detector</h3><button data-help="detectors"></button></div>
           <div id="detectors" class="det-grid" role="group" aria-label="Detector filter"></div>
         </section>
 
         <section class="panel-sec" id="sec-overlays">
-          <h3>Overlays</h3>
+          <div class="sec-head"><h3>Overlays</h3><button data-help="overlays"></button></div>
           <div class="toggles">
             <label class="toggle"><input id="ov-crosshair" type="checkbox" checked><span class="switch"></span>
               <span class="t-text">Crosshair</span><span class="swatch" style="--sw: var(--accent); --sw-r: 2px"></span></label>
@@ -152,6 +168,7 @@
             <svg viewBox="0 0 20 20"><path d="M7.5 5l5 5-5 5"/></svg>
           </button>
           <span id="frame-count" class="frame-count num">0 / 0</span>
+          <button data-help="playback"></button>
           <label class="speed"><span id="fps-value" class="num">4 per second</span>
             <input id="fps" type="range" min="0.5" max="20" step="0.5" value="4" aria-label="Playback speed">
           </label>
@@ -159,20 +176,20 @@
 
         <div class="timeline" id="timeline-wrap">
           <canvas id="timeline" height="52" aria-label="Observation dates. Click to jump."></canvas>
-          <div class="timeline-ends num"><span id="t-start"></span><span id="t-end"></span></div>
+          <div class="timeline-ends num"><span id="t-start"></span><button data-help="timeline"></button><span id="t-end"></span></div>
         </div>
       </main>
 
       <!-- Right: about this image -->
       <aside class="v-panel v-right" aria-label="About this image">
         <section class="panel-sec" id="sec-info">
-          <h3 id="info-title">This image</h3>
+          <div class="sec-head"><h3 id="info-title">This image</h3><button data-help="info"></button></div>
           <dl id="facts" class="facts"></dl>
           <div id="flag-chips" class="flag-chips"></div>
         </section>
 
         <section class="panel-sec" id="sec-spectrum">
-          <h3>Spectrum</h3>
+          <div class="sec-head"><h3>Spectrum</h3><button data-help="spectrum"></button></div>
           <div class="spectrum-plot"><canvas id="spectrum" height="220" aria-label="Brightness against wavelength"></canvas></div>
           <p id="spec-readout" class="spec-readout caption-parts num"></p>
           <div class="spec-actions">
@@ -181,7 +198,7 @@
         </section>
 
         <section class="panel-sec" id="sec-display">
-          <h3>Display</h3>
+          <div class="sec-head"><h3>Display</h3><button data-help="display"></button></div>
           <div class="stack">
             <div class="seg" id="render-seg" role="radiogroup" aria-label="Pixel rendering">
               <button type="button" role="radio" data-render="smooth" aria-checked="true">Smooth</button>
@@ -202,7 +219,7 @@
         </section>
 
         <section class="panel-sec" id="sec-loading">
-          <h3>Data</h3>
+          <div class="sec-head"><h3>Data</h3><button data-help="data"></button></div>
           <dl id="data-facts" class="facts"></dl>
           <div class="status-line"><button id="retry-failed" type="button" class="btn ghost small" hidden>Retry failed</button></div>
           <details id="failures" class="failures" hidden><summary></summary><ul></ul></details>

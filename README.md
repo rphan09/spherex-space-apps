@@ -49,7 +49,10 @@ The site opens on a start screen. It has:
   the viewer itself, pointing at each live control.
 - **Start exploring:** go straight to the sky.
 
-The **?** button brings the start screen back.
+The **?** button brings the start screen back. The small **?** icons beside
+each control and each technical field explain what it shows. They open on
+click or tap, or on hover with a mouse. Escape or a click elsewhere closes
+them.
 
 ### The sky
 
@@ -218,6 +221,15 @@ SPHEREx Explanatory Supplement:
 - **Caching.** Everything is cached on disk under `backend/cache/`: search
   results for 24 hours, frames (with flags) and catalogues indefinitely. A
   second visit to a field is instant.
+- **Page load.**
+  - Text responses are gzipped. The 2.4 MB Aladin script goes out as about
+    0.8 MB.
+  - Binary frame endpoints are never gzipped, so frames are not held back.
+  - The vendored library lives in a versioned folder, so browsers cache it
+    for a year.
+  - Our own files are revalidated on each load, so updates show at once.
+  - All JavaScript modules are preloaded in parallel.
+  - The typeface is one variable-font file.
 
 ## How it works
 
@@ -237,6 +249,7 @@ frontend/
   js/sky.js        sky map, markers, prompt card, camera
   js/viewer.js     blink viewer: loading, views, overlays, spectrum, sharing
   js/tour.js       start screen and guided tour
+  js/help.js       the ? help icons and their explanations
   js/util.js       helpers (coordinates, float16 decoding, stream reader)
   vendor/aladin-lite-3.8.2/
 ```

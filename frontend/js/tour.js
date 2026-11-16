@@ -49,11 +49,6 @@ const TOUR = [
     text: "Know where you want to look? Type a right ascension and declination, in decimal degrees or in hours and degrees (08h55m10.8s, −07d14m42s), and press Blink.",
   },
   {
-    target: ".layer-switch", before: onSky,
-    title: "Colour or one wavelength",
-    text: "Colour combines three of SPHEREx's 102 wavelengths. Choose “One wavelength” and drag the slider to step through all of them; its six coloured sections are the six detectors.",
-  },
-  {
     target: "#stage", before: openBarnard,
     title: "The blink viewer",
     text: "Every SPHEREx image of the field, oldest to newest, lined up so the stars stay still. This is Barnard's Star: it moves about 10″ a year, almost two SPHEREx pixels between the 2025 and 2026 visits. Images appear as soon as they arrive.",

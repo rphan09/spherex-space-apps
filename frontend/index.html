@@ -63,16 +63,19 @@
   </nav>
 
   <footer class="skybar">
-    <div class="seg layer-switch" role="radiogroup" aria-label="Sky layer">
-      <button type="button" role="radio" data-layer="rgb" aria-checked="true">Colour</button>
-      <button type="button" role="radio" data-layer="mono" aria-checked="false">One wavelength</button>
+    <!-- Sky layer controls: kept for the scripts, not shown. -->
+    <div hidden>
+      <div class="seg layer-switch" role="radiogroup" aria-label="Sky layer">
+        <button type="button" role="radio" data-layer="rgb" aria-checked="true">Colour</button>
+        <button type="button" role="radio" data-layer="mono" aria-checked="false">One wavelength</button>
+      </div>
+      <button data-help="layer" class="hint-float"></button>
+      <div id="spectrum-slider" class="spectrum-slider" hidden>
+        <input id="wave" type="range" min="0" max="99" step="1" value="40" aria-label="Wavelength">
+        <output id="wave-value" class="num" for="wave"></output>
+      </div>
+      <p id="layer-note" class="layer-note">Blue 1.25&nbsp;µm, green 2.19&nbsp;µm, red 3.29&nbsp;µm</p>
     </div>
-    <button data-help="layer" class="hint-float"></button>
-    <div id="spectrum-slider" class="spectrum-slider" hidden>
-      <input id="wave" type="range" min="0" max="99" step="1" value="40" aria-label="Wavelength">
-      <output id="wave-value" class="num" for="wave"></output>
-    </div>
-    <p id="layer-note" class="layer-note">Blue 1.25&nbsp;µm, green 2.19&nbsp;µm, red 3.29&nbsp;µm</p>
     <p class="readout num"><span id="cursor">—</span><span id="fov"></span></p>
   </footer>
 
@@ -249,7 +252,7 @@
         that moves or changes brightness jumps out.
       </p>
       <ol class="intro-steps">
-        <li><strong>Explore the sky.</strong> Drag to look around, scroll to zoom, switch between colour and single wavelengths.</li>
+        <li><strong>Explore the sky.</strong> Drag to look around, scroll to zoom.</li>
         <li><strong>Pick something.</strong> Choose a marked target, click any patch of sky, or type coordinates.</li>
         <li><strong>Blink it.</strong> Play the images in date order, stack and subtract visits, and read the spectrum.</li>
       </ol>

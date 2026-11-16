@@ -45,7 +45,7 @@ gives way to searches and blinks.
 ## Using it
 
 The site opens on a start screen. It has:
-- **Take the tour:** a 15-step guided walk that moves the camera and opens
+- **Take the tour:** a 14-step guided walk that moves the camera and opens
   the viewer itself, pointing at each live control.
 - **Start exploring:** go straight to the sky.
 
@@ -63,9 +63,8 @@ them.
 - Click any other spot to select it.
 - **Open blink viewer** on the card opens the viewer. You can also type RA
   and Dec at the top, in decimal degrees or sexagesimal.
-- **Colour / One wavelength** switches the sky between:
-  - a colour image (1.25, 2.19 and 3.29 µm);
-  - any of the 100 SPHEREx wavelength channels.
+- The sky is a colour image made from three SPHEREx wavelengths (1.25, 2.19
+  and 3.29 µm).
 
 ### The blink viewer
 
